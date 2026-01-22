@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X-Follow Assistant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Navigation -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="follow">关注助手</button>
+      <button class="tab-btn" data-tab="unfollow">取关助手</button>
+      <button class="tab-btn" data-tab="history">运行记录</button>
+    </nav>
+
+    <!-- VIEW: DASHBOARD -->
+    <div id="view-dashboard" class="tab-view active">
+      
+      <!-- Dashboard Header -->
+      <header class="dashboard-header">
+        <div class="status-wrapper">
+          <span class="status-label">当前状态</span>
+          <div class="status-indicator">
+            <div class="pulse-dot" id="status-pulse"></div>
+            <span id="status-text">就绪</span>
+          </div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <span class="stat-num" id="count-followed">0</span>
+            <span class="stat-desc">已关注</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-num" id="count-skipped" style="color: var(--text-secondary)">0</span>
+            <span class="stat-desc">已跳过</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Controls -->
+      <main class="controls-area">
+        
+        <!-- Setting Card -->
+        <div class="card">
+          <!-- Blue Tick Toggle -->
+          <div class="control-row">
+            <div>
+              <span class="label-main">蓝标过滤</span>
+              <span class="label-sub">仅关注认证用户</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-blue-tick">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <!-- Intervals -->
+          <div class="control-row">
+            <div>
+              <span class="label-main">随机间隔</span>
+              <span class="label-sub">秒 (Min - Max)</span>
+            </div>
+            <div class="input-group">
+              <input type="number" id="setting-min-interval" value="3" min="1">
+              <span style="color:var(--text-secondary)">-</span>
+              <input type="number" id="setting-max-interval" value="8" min="2">
+            </div>
+          </div>
+
+          <!-- Batch & Rest -->
+          <div class="control-row" style="margin-top: 16px;">
+            <div>
+              <span class="label-main">批次数量</span>
+              <span class="label-sub">人/批</span>
+            </div>
+            <div class="input-group">
+              <input type="number" id="setting-batch-size" value="15" max="15">
+            </div>
+          </div>
+          
+          <div class="control-row">
+            <div>
+              <span class="label-main">休息时长</span>
+              <span class="label-sub">分钟</span>
+            </div>
+            <div class="input-group">
+              <input type="number" id="setting-rest-time" value="5">
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Section -->
+        <div class="action-section">
+          <button id="btn-start" class="btn-primary">
+            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span class="btn-text">启动引擎</span>
+          </button>
+
+          <div class="coffee-wrapper">
+            <button id="btn-coffee" class="coffee-link">
+              <span class="coffee-icon">☕</span>
+              <span>赞赏支持</span>
+            </button>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- Logs -->
+      <footer class="terminal-area">
+        <div class="terminal-header">
+          <span class="terminal-title">系统日志流</span>
+          <button id="btn-clear-logs" class="btn-clear">清空</button>
+        </div>
+        <div class="terminal-window" id="log-container">
+          <div class="log-entry system">System initialized...</div>
+        </div>
+      </footer>
+    </div>
+
+    <!-- VIEW: HISTORY -->
+    <div id="view-history" class="tab-view">
+      <div class="history-header">
+        <span class="history-title">历史会话</span>
+        <button id="btn-clear-history" class="btn-clear">全部清空</button>
+      </div>
+      <div id="history-list" class="history-list">
+        <!-- JS Injected -->
+        <div style="padding:40px; text-align:center; color:var(--text-secondary); font-size:13px;">暂无历史记录</div>
+      </div>
+    </div>
+    
+    <!-- MODAL: DONATE -->
+    <div id="modal-donate" class="modal-overlay">
+      <div class="modal-card">
+        <button id="btn-close-modal" class="modal-close-btn">×</button>
+        <div class="modal-content">
+          <div class="qr-title">感谢支持开发 ❤️</div>
+          <div class="qr-subtitle">扫码请我喝杯咖啡</div>
+          <div class="qr-image-wrapper">
+            <img src="../assets/qr-code.png" alt="Donate QR Code" class="qr-img">
+            <div class="qr-scan-line"></div>
+          </div>
+          <div class="qr-footer">支付宝 / 微信支付</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <script src="main.js" type="module"></script>
+</body>
+</html>

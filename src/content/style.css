@@ -1,0 +1,47 @@
+/* X-Follow Assistant - Injected Styles */
+
+/* --- Badge: "Bye" --- */
+.xf-badge-bye {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #ff4d4d, #f91880);
+    color: white;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 99px;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(249, 24, 128, 0.3);
+    pointer-events: none;
+    user-select: none;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    animation: xf-pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    white-space: nowrap;
+}
+
+@keyframes xf-pop-in {
+    from { opacity: 0; transform: translateX(-50%) scale(0.5); }
+    to { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+/* --- Target Highlight (Optional, for debugging or visual feedback) --- */
+.xf-target-unfollow {
+    position: relative;
+}
+
+.xf-target-unfollow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(249, 24, 128, 0.2);
+    border-radius: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.xf-target-unfollow:hover::after {
+    opacity: 1;
+}
