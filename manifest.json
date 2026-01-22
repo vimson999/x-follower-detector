@@ -5,9 +5,7 @@
   "description": "Professional automated follower management for X (Twitter) with anti-ban heuristics.",
   "permissions": [
     "storage",
-    "activeTab",
-    "scripting",
-    "notifications"
+    "activeTab"
   ],
   "host_permissions": [
     "https://twitter.com/*",

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Chrome Store Assets Generator (Fixed)</title>
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+        }
+        h1 { margin-bottom: 10px; }
+        p { color: #888; margin-bottom: 40px; }
+        
+        .asset-group {
+            margin-bottom: 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        canvas {
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #000;
+        }
+        
+        .canvas-label { font-size: 16px; font-weight: bold; color: #1d9bf0; }
+        .canvas-desc { font-size: 12px; color: #666; margin-bottom: 5px; }
+
+        button {
+            padding: 10px 24px;
+            background: #1d9bf0;
+            color: white;
+            border: none;
+            border-radius: 99px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        button:hover { background: #1a8cd8; transform: scale(1.05); }
+    </style>
+</head>
+<body>
+
+    <h1>商店素材生成器 (已修正尺寸)</h1>
+    <p>打开此页面后，直接点击下载按钮即可获得符合规格的图片</p>
+
+    <!-- 1. Main Screenshot (1280x800) -->
+    <div class="asset-group">
+        <div class="canvas-label">1. 主屏幕截图 (Required Screenshot)</div>
+        <div class="canvas-desc">尺寸: 1280 x 800 (商店展示的主图)</div>
+        <canvas id="canvas-main" width="1280" height="800" style="zoom: 0.4;"></canvas>
+        <button onclick="download('canvas-main', 'screenshot-main-1280x800.png')">下载 1280x800 PNG</button>
+    </div>
+
+    <!-- 2. Small Promo (440x280) -->
+    <div class="asset-group">
+        <div class="canvas-label">2. 小号宣传图 (Small Promo Tile)</div>
+        <div class="canvas-desc">尺寸: 440 x 280 (列表页展示)</div>
+        <canvas id="canvas-small" width="440" height="280"></canvas>
+        <button onclick="download('canvas-small', 'promo-small-440x280.png')">下载 440x280 PNG</button>
+    </div>
+
+    <!-- 3. Marquee Promo (920x680) -->
+    <div class="asset-group">
+        <div class="canvas-label">3. 大号宣传图 (Marquee Promo Tile)</div>
+        <div class="canvas-desc">尺寸: 920 x 680 (首页推荐位展示)</div>
+        <canvas id="canvas-large" width="920" height="680" style="zoom: 0.6;"></canvas>
+        <button onclick="download('canvas-large', 'promo-large-920x680.png')">下载 920x680 PNG</button>
+    </div>
+
+    <!-- 4. Header Marquee (1400x560) -->
+    <div class="asset-group">
+        <div class="canvas-label">4. 顶部宣传图 (Header Image)</div>
+        <div class="canvas-desc">尺寸: 1400 x 560 (商店详情页顶部)</div>
+        <canvas id="canvas-header" width="1400" height="560" style="zoom: 0.5;"></canvas>
+        <button onclick="download('canvas-header', 'header-1400x560.png')">下载 1400x560 PNG</button>
+    </div>
+
+    <script>
+        const colors = {
+            bg: '#000000',
+            blue: '#1d9bf0',
+            pink: '#f91880',
+            text: '#ffffff',
+            subtext: '#888888'
+        };
+
+        function drawHeader() {
+            const ctx = document.getElementById('canvas-header').getContext('2d');
+            const w = 1400; const h = 560;
+
+            // Background
+            const g = ctx.createLinearGradient(0, 0, w, h);
+            g.addColorStop(0, '#050505');
+            g.addColorStop(1, '#1a1a1a');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, w, h);
+
+            // Left Side: Text
+            ctx.textAlign = 'left';
+            
+            // "X-Follow"
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 80px sans-serif';
+            ctx.fillText('X-Follow', 100, h/2 - 20);
+            
+            // "Assistant Pro" (Gradient)
+            const textGrad = ctx.createLinearGradient(100, 0, 600, 0);
+            textGrad.addColorStop(0, colors.blue);
+            textGrad.addColorStop(1, colors.pink);
+            ctx.fillStyle = textGrad;
+            ctx.fillText('Assistant Pro', 100, h/2 + 60);
+
+            // Subtitle
+            ctx.fillStyle = '#888';
+            ctx.font = '32px sans-serif';
+            ctx.fillText('Safe, Automated Follow & Unfollow Manager', 100, h/2 + 120);
+
+            // Right Side: Abstract Graphics
+            ctx.save();
+            ctx.translate(w - 300, h/2);
+            
+            // Orbit Circles
+            ctx.strokeStyle = 'rgba(29, 155, 240, 0.2)';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, 150, 0, Math.PI*2); ctx.stroke();
+            
+            ctx.strokeStyle = 'rgba(249, 24, 128, 0.2)';
+            ctx.beginPath(); ctx.arc(0, 0, 220, 0, Math.PI*2); ctx.stroke();
+
+            // Dots
+            ctx.fillStyle = colors.blue;
+            ctx.beginPath(); ctx.arc(150 * Math.cos(0.5), 150 * Math.sin(0.5), 8, 0, Math.PI*2); ctx.fill();
+
+            ctx.fillStyle = colors.pink;
+            ctx.beginPath(); ctx.arc(220 * Math.cos(2.5), 220 * Math.sin(2.5), 10, 0, Math.PI*2); ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawMain() {
+            const ctx = document.getElementById('canvas-main').getContext('2d');
+            const w = 1280; const h = 800;
+
+            // BG
+            ctx.fillStyle = colors.bg;
+            ctx.fillRect(0, 0, w, h);
+
+            // Large Glows
+            const g1 = ctx.createRadialGradient(w*0.8, h*0.2, 0, w*0.8, h*0.2, 600);
+            g1.addColorStop(0, 'rgba(29, 155, 240, 0.15)');
+            g1.addColorStop(1, 'transparent');
+            ctx.fillStyle = g1; ctx.fillRect(0, 0, w, h);
+
+            const g2 = ctx.createRadialGradient(w*0.2, h*0.8, 0, w*0.2, h*0.8, 600);
+            g2.addColorStop(0, 'rgba(249, 18, 128, 0.1)');
+            g2.addColorStop(1, 'transparent');
+            ctx.fillStyle = g2; ctx.fillRect(0, 0, w, h);
+
+            // Title
+            ctx.textAlign = 'center';
+            ctx.fillStyle = colors.text;
+            ctx.font = 'bold 80px sans-serif';
+            ctx.fillText('X-Follow Assistant Pro', w/2, h/2 - 20);
+
+            // Subtitle
+            ctx.font = '36px sans-serif';
+            ctx.fillStyle = colors.subtext;
+            ctx.fillText('Automated Follow & Unfollow Management', w/2, h/2 + 60);
+
+            // Features
+            drawTag(ctx, '⚡️ Heuristic Anti-Ban', w/2 - 280, h/2 + 150, colors.blue);
+            drawTag(ctx, '👋 Smart Unfollow', w/2, h/2 + 150, colors.pink);
+            drawTag(ctx, '📊 Activity Logs', w/2 + 280, h/2 + 150, colors.blue);
+        }
+
+        function drawSmall() {
+            const ctx = document.getElementById('canvas-small').getContext('2d');
+            const w = 440; const h = 280;
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, w, h);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 32px sans-serif';
+            ctx.fillText('X-Follow', w/2, h/2 - 5);
+            ctx.font = '18px sans-serif';
+            ctx.fillStyle = colors.blue;
+            ctx.fillText('Professional Assistant', w/2, h/2 + 30);
+        }
+
+        function drawLarge() {
+            const ctx = document.getElementById('canvas-large').getContext('2d');
+            const w = 920; const h = 680;
+            ctx.fillStyle = colors.bg;
+            ctx.fillRect(0, 0, w, h);
+            
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 64px sans-serif';
+            ctx.fillText('X-Follow Assistant', w/2, h/2 - 20);
+            ctx.font = '28px sans-serif';
+            ctx.fillStyle = '#666';
+            ctx.fillText('Smart Operation Tool for X (Twitter)', w/2, h/2 + 40);
+        }
+
+        function drawTag(ctx, text, x, y, color) {
+            ctx.font = 'bold 20px sans-serif';
+            const tw = ctx.measureText(text).width;
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.15;
+            ctx.beginPath();
+            ctx.roundRect(x - (tw+40)/2, y - 25, tw+40, 50, 25);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            ctx.strokeStyle = color;
+            ctx.stroke();
+            ctx.fillStyle = color;
+            ctx.fillText(text, x, y + 8);
+        }
+
+        function download(id, name) {
+            const link = document.createElement('a');
+            link.download = name;
+            link.href = document.getElementById(id).toDataURL();
+            link.click();
+        }
+
+        drawMain();
+        drawSmall();
+        drawLarge();
+        drawHeader();
+    </script>
+</body>
+</html>
