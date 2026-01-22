@@ -155,6 +155,21 @@
       }
     }
 
+    class RateLimitDetector {
+        static check() {
+            // X usually shows a toast with data-testid="toast"
+            const toast = document.querySelector('[data-testid="toast"]');
+            if (toast) {
+                const text = toast.innerText.toLowerCase();
+                if (text.includes('limit') || text.includes('限制') || text.includes('wait') || text.includes('稍等')) {
+                    return true;
+                }
+            }
+            // Check for generic alerts if toast misses
+            return false;
+        }
+    }
+
     class HoverCardController {
         static async processHoverAction(targetElement) {
             const mouseOverEvent = new MouseEvent('mouseover', { view: window, bubbles: true, cancelable: true });
@@ -186,8 +201,33 @@
                 if (label.toLowerCase().includes('following') || label.toLowerCase().includes('关注中')) {
                      result = { status: 'SKIPPED', msg: '已关注' };
                 } else {
+                    // --- Click & Validate ---
                     followBtn.click();
-                    result = { status: 'SUCCESS', msg: '通过悬停关注成功' };
+                    await Humanizer.sleep(1000); // Wait for X response
+
+                    if (RateLimitDetector.check()) {
+                        result = { status: 'RATE_LIMIT', msg: '触发官方限流' };
+                    } else {
+                        // Re-check button state
+                        let newUnfollowBtn = hoverCard.querySelector('[data-testid$="-unfollow"]');
+                        let newFollowBtn = hoverCard.querySelector('[data-testid$="-follow"]');
+                        
+                        // Sometimes button stays as 'follow' but style changes to 'following', or it becomes 'unfollow'
+                        // Safe check: if we see 'unfollow' button OR the follow button now says 'Following'
+                        let isSuccess = !!newUnfollowBtn;
+                        if (!isSuccess && newFollowBtn) {
+                             const newLabel = newFollowBtn.getAttribute('aria-label') || newFollowBtn.innerText || "";
+                             if (newLabel.toLowerCase().includes('following') || newLabel.toLowerCase().includes('关注中')) {
+                                 isSuccess = true;
+                             }
+                        }
+
+                        if (isSuccess) {
+                            result = { status: 'SUCCESS', msg: '通过悬停关注成功' };
+                        } else {
+                            result = { status: 'ERROR', msg: '点击无效 (可能是隐性限流)' };
+                        }
+                    }
                 }
             } else {
                 result = { status: 'SKIPPED', msg: '未找到关注按钮' };
@@ -220,13 +260,14 @@
             const confirmBtn = document.querySelector('[data-testid="confirmationSheetConfirm"]');
             if (confirmBtn) {
                 confirmBtn.click();
-                await Humanizer.sleep(500);
-                return { status: 'SUCCESS', msg: '取关成功' };
-            } else {
-                // Sometimes there is no confirmation (rare, but possible)
-                // Or layout changed
-                return { status: 'SUCCESS', msg: '取关成功 (无弹窗)' }; 
+                await Humanizer.sleep(1000);
             }
+            
+            if (RateLimitDetector.check()) {
+                return { status: 'RATE_LIMIT', msg: '触发官方限流' };
+            }
+
+            return { status: 'SUCCESS', msg: '取关成功' };
         }
     }
   
@@ -396,11 +437,38 @@
                             
                             // Random Delay
                             await Humanizer.randomDelay(this.config.minInterval, this.config.maxInterval);
+                        } else if (actionResult.status === 'RATE_LIMIT') {
+                            Logger.log('error', `❌ 触发官方限流！进入强制休息模式...`);
+                            Logger.updateStatus('RESTING');
+                            
+                            // Force rest for configured time (default 10 mins)
+                            // We use a fixed 10m or config.restTime, whichever is safer? 
+                            // Let's use config.restTime but ensure at least 10m if it's too low?
+                            // User request: "Default rest 10 min". Let's use config.restTime.
+                            // If user set 1 min, it might not be enough. Let's enforce max(config.restTime, 10).
+                            const restMins = Math.max(this.config.restTime, 10);
+                            
+                            Logger.log('warn', `将在 ${restMins} 分钟后尝试恢复...`);
+                            await Humanizer.sleep(restMins * 60 * 1000);
+                            
+                            Logger.log('info', '限流休息结束，尝试继续...');
+                            Logger.updateStatus('ACTIVE');
+                            batchCount = 0; // Reset batch count
+                            // Don't increment processedInThisPass or add to set, so we retry? 
+                            // Actually, if we failed this one, we should probably skip it or retry it next loop.
+                            // Let's just continue loop. The current target 'uniqueId' was NOT added to processedSet yet?
+                            // Wait, logic below adds it. We should probably NOT add it if we want to retry it later,
+                            // OR add it to skip it. Safest is to skip this specific user and move on.
+                            this.processedSet.add(uniqueId); 
                         } else {
                              Logger.log('error', `取关失败 ${info.handle}: ${actionResult.msg}`);
+                             this.processedSet.add(uniqueId);
                         }
 
-                        this.processedSet.add(uniqueId);
+                        // this.processedSet.add(uniqueId); // Moved inside to handle flow
+                        Logger.updateStats(this.stats.followed, this.stats.skipped);
+                        processedInThisPass++;
+                    }
                         Logger.updateStats(this.stats.followed, this.stats.skipped);
                         processedInThisPass++;
                     }
@@ -445,7 +513,21 @@
                         const followBtn = info.element.querySelector('[data-testid$="-follow"]');
                         if (followBtn) {
                             followBtn.click();
-                            actionResult = { status: 'SUCCESS', msg: '关注成功' };
+                            await Humanizer.sleep(1000); 
+                            
+                            if (RateLimitDetector.check()) {
+                                actionResult = { status: 'RATE_LIMIT', msg: '触发官方限流' };
+                            } else {
+                                // Validate direct follow
+                                const newUnfollowBtn = info.element.querySelector('[data-testid$="-unfollow"]');
+                                if (newUnfollowBtn) {
+                                    actionResult = { status: 'SUCCESS', msg: '关注成功' };
+                                } else {
+                                    // Sometimes X UI lags, but if no error toast, we might assume success or retry?
+                                    // Let's be strict: if button didn't change, it failed.
+                                    actionResult = { status: 'ERROR', msg: '关注失败 (点击无效)' };
+                                }
+                            }
                         } else {
                             actionResult = { status: 'SKIPPED', msg: '已关注' };
                         }
@@ -456,6 +538,18 @@
                         batchCount++;
                         Visualizer.markProcessed(info.element, 'SUCCESS');
                         Logger.log('success', `已关注 ${info.handle}`);
+                        await Humanizer.randomDelay(this.config.minInterval, this.config.maxInterval);
+                    } else if (actionResult.status === 'RATE_LIMIT') {
+                         Logger.log('error', `❌ 触发官方限流！进入强制休息模式...`);
+                         Logger.updateStatus('RESTING');
+                         
+                         const restMins = Math.max(this.config.restTime, 10);
+                         Logger.log('warn', `将在 ${restMins} 分钟后尝试恢复...`);
+                         await Humanizer.sleep(restMins * 60 * 1000);
+                         
+                         Logger.log('info', '限流休息结束，尝试继续...');
+                         Logger.updateStatus('ACTIVE');
+                         batchCount = 0;
                     } else if (actionResult.status === 'SKIPPED') {
                         this.stats.skipped++;
                         Visualizer.markProcessed(info.element, 'SKIPPED');

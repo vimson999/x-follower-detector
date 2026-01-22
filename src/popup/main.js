@@ -7,7 +7,7 @@ const DEFAULT_SETTINGS = {
   minInterval: 3,
   maxInterval: 8,
   batchSize: 20,
-  restTime: 5,
+  restTime: 10,
   onlyBlueTick: false
 };
 
@@ -54,7 +54,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadSettings() {
   const result = await chrome.storage.local.get(['settings', 'activityLogs']);
-  const settings = { ...DEFAULT_SETTINGS, ...(result.settings || {}) };
+  let settings = { ...DEFAULT_SETTINGS, ...(result.settings || {}) };
+
+  // Migration: Upgrade old default 5 to new default 10
+  if (settings.restTime === 5) {
+      settings.restTime = 10;
+      // Save the upgraded value back
+      chrome.storage.local.set({ settings: { ...settings } });
+  }
 
   elements.inputs.minInterval.value = settings.minInterval;
   elements.inputs.maxInterval.value = settings.maxInterval;
@@ -337,15 +344,46 @@ async function toggleEngine() {
 
   if (!isRunning) {
     // Start
-    chrome.tabs.sendMessage(tab.id, { 
-      type: 'CMD_START', 
-      payload: settings 
-    }).catch(err => {
-        addLog('warn', '无法连接页面 (请刷新 X 页面)');
-    });
-    updateStatus('ACTIVE');
-    setButtonState('running');
-    isRunning = true;
+    try {
+        await chrome.tabs.sendMessage(tab.id, { 
+            type: 'CMD_START', 
+            payload: settings 
+        });
+        updateStatus('ACTIVE');
+        setButtonState('running');
+        isRunning = true;
+    } catch (err) {
+        // Fallback: Auto-inject if connection failed
+        addLog('warn', '连接断开，尝试自动修复...');
+        try {
+            // Inject CSS first
+            await chrome.scripting.insertCSS({
+                target: { tabId: tab.id },
+                files: ['src/content/style.css']
+            });
+            // Then JS
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['src/content/content.js']
+            });
+            
+            await new Promise(r => setTimeout(r, 500)); // Wait for init
+            
+            // Retry Start
+            await chrome.tabs.sendMessage(tab.id, { 
+                type: 'CMD_START', 
+                payload: settings 
+            });
+            
+            addLog('success', '连接已恢复');
+            updateStatus('ACTIVE');
+            setButtonState('running');
+            isRunning = true;
+        } catch (injectErr) {
+            console.error(injectErr);
+            addLog('error', '无法启动: 请尝试刷新页面');
+        }
+    }
   } else {
     // Stop
     chrome.tabs.sendMessage(tab.id, { type: 'CMD_STOP' });
