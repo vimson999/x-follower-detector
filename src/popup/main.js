@@ -7,7 +7,7 @@ const DEFAULT_SETTINGS = {
   minInterval: 3,
   maxInterval: 8,
   batchSize: 20,
-  restTime: 10,
+  restTime: 15,
   onlyBlueTick: false
 };
 
@@ -56,10 +56,9 @@ async function loadSettings() {
   const result = await chrome.storage.local.get(['settings', 'activityLogs']);
   let settings = { ...DEFAULT_SETTINGS, ...(result.settings || {}) };
 
-  // Migration: Upgrade old default 5 to new default 10
-  if (settings.restTime === 5) {
-      settings.restTime = 10;
-      // Save the upgraded value back
+  // Migration: Upgrade old default 5 or 10 to new default 15
+  if (settings.restTime === 5 || settings.restTime === 10) {
+      settings.restTime = 15;
       chrome.storage.local.set({ settings: { ...settings } });
   }
 
@@ -409,6 +408,19 @@ function pingContentScript() {
                 isRunning = true;
                 setButtonState('running');
                 updateStatus(response.status || 'ACTIVE');
+                
+                // Sync Stats
+                if (response.stats) {
+                    updateStats(response.stats);
+                }
+                
+                // Sync Logs
+                if (response.logs && Array.isArray(response.logs)) {
+                    elements.logContainer.innerHTML = ''; // Clear initial message
+                    response.logs.forEach(log => {
+                        renderLogEntry(log.time, log.level, log.text);
+                    });
+                }
             }
         }
       });
@@ -426,7 +438,15 @@ const STATUS_MAP = {
 };
 
 function updateStatus(status) {
-  const label = STATUS_MAP[status] || status;
+  let label = STATUS_MAP[status] || status;
+  
+  // Handle packed status: "RESTING|09:59"
+  if (status.startsWith('RESTING|')) {
+      const time = status.split('|')[1];
+      label = `休息中 (${time})`;
+      status = 'RESTING'; // Normalize for CSS
+  }
+
   elements.stats.statusText.innerText = label;
   
   elements.stats.statusPulse.className = 'pulse-dot';

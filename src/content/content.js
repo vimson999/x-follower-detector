@@ -172,22 +172,41 @@
 
     class HoverCardController {
         static async processHoverAction(targetElement) {
-            const mouseOverEvent = new MouseEvent('mouseover', { view: window, bubbles: true, cancelable: true });
-            targetElement.dispatchEvent(mouseOverEvent);
-
+            const maxRetries = 3;
             let hoverCard = null;
-            let attempts = 0;
-            while (attempts < 20) {
-                await Humanizer.sleep(100);
-                hoverCard = document.querySelector('[data-testid="HoverCard"]');
+
+            for (let i = 0; i < maxRetries; i++) {
+                // Trigger Hover
+                const mouseOverEvent = new MouseEvent('mouseover', { view: window, bubbles: true, cancelable: true });
+                targetElement.dispatchEvent(mouseOverEvent);
+                // Also dispatch generic mouseenter/move to ensure React listeners catch it
+                targetElement.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+
+                // Wait for card
+                let attempts = 0;
+                while (attempts < 25) { // 2.5s timeout per try
+                    await Humanizer.sleep(100);
+                    hoverCard = document.querySelector('[data-testid="HoverCard"]');
+                    if (hoverCard) break;
+                    attempts++;
+                }
+
                 if (hoverCard) break;
-                attempts++;
+
+                // If failed, clean up and retry
+                targetElement.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+                targetElement.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+                
+                if (i < maxRetries - 1) {
+                    // Jitter: micro scroll to force layout recalc
+                    window.scrollBy(0, 1);
+                    await Humanizer.sleep(1000); // Wait 1s before retry
+                    window.scrollBy(0, -1);
+                }
             }
 
             if (!hoverCard) {
-                const mouseOutEvent = new MouseEvent('mouseout', { view: window, bubbles: true, cancelable: true });
-                targetElement.dispatchEvent(mouseOutEvent);
-                return { status: 'ERROR', msg: '悬停卡片未出现' };
+                return { status: 'ERROR', msg: '悬停卡片未出现 (重试3次失败)' };
             }
 
             let followBtn = hoverCard.querySelector('[data-testid$="-follow"]');
@@ -327,6 +346,8 @@
 
       recordLog(logEntry) {
           if (this.currentSession && this.currentSession.logs) {
+              // Only keep essential logs to save space? No, user wants detailed traces.
+              // Limit to last 200 logs per session to be safe for storage.
               if (this.currentSession.logs.length < 200) {
                   this.currentSession.logs.push(logEntry);
               }
@@ -343,8 +364,11 @@
           try {
               const result = await chrome.storage.local.get(['history']);
               let history = result.history || [];
+              // Add new session to top
               history.unshift(this.currentSession);
+              // Keep last 20 sessions max
               if (history.length > 20) history = history.slice(0, 20);
+              
               await chrome.storage.local.set({ history });
               Logger.log('system', '会话记录已保存至历史。');
           } catch (e) {
@@ -364,10 +388,33 @@
 
       async finish() {
         this.isRunning = false;
-        Logger.log('success', '任务完成：没有发现更多目标。');
+        Logger.log('success', '任务完成：没有发现更多用户。');
         Logger.updateStatus('FINISHED');
         await this.saveSession();
-        alert('X-Follow: 任务已完成。');
+        alert('X-Follow: 任务已完成，已无更多用户可关注。');
+      }
+
+      // New Helper: Rest with UI Countdown (Timestamp based)
+      async restWithCountdown(minutes) {
+          Logger.log('warn', `进入休息模式，时长: ${minutes} 分钟...`);
+          
+          const endTime = Date.now() + (minutes * 60 * 1000);
+          
+          while (Date.now() < endTime) {
+              if (!this.isRunning) break;
+              
+              const remainingMs = endTime - Date.now();
+              const totalSeconds = Math.ceil(remainingMs / 1000);
+              
+              const mins = Math.floor(totalSeconds / 60);
+              const secs = totalSeconds % 60;
+              const timeStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+              
+              // Broadcast packed status
+              Logger.updateStatus(`RESTING|${timeStr}`);
+              
+              await Humanizer.sleep(1000);
+          }
       }
   
       async loop() {
@@ -439,7 +486,6 @@
                             await Humanizer.randomDelay(this.config.minInterval, this.config.maxInterval);
                         } else if (actionResult.status === 'RATE_LIMIT') {
                             Logger.log('error', `❌ 触发官方限流！进入强制休息模式...`);
-                            Logger.updateStatus('RESTING');
                             
                             // Force rest for configured time (default 10 mins)
                             // We use a fixed 10m or config.restTime, whichever is safer? 
@@ -448,8 +494,7 @@
                             // If user set 1 min, it might not be enough. Let's enforce max(config.restTime, 10).
                             const restMins = Math.max(this.config.restTime, 10);
                             
-                            Logger.log('warn', `将在 ${restMins} 分钟后尝试恢复...`);
-                            await Humanizer.sleep(restMins * 60 * 1000);
+                            await this.restWithCountdown(restMins);
                             
                             Logger.log('info', '限流休息结束，尝试继续...');
                             Logger.updateStatus('ACTIVE');
@@ -466,9 +511,6 @@
                         }
 
                         // this.processedSet.add(uniqueId); // Moved inside to handle flow
-                        Logger.updateStats(this.stats.followed, this.stats.skipped);
-                        processedInThisPass++;
-                    }
                         Logger.updateStats(this.stats.followed, this.stats.skipped);
                         processedInThisPass++;
                     }
@@ -541,11 +583,9 @@
                         await Humanizer.randomDelay(this.config.minInterval, this.config.maxInterval);
                     } else if (actionResult.status === 'RATE_LIMIT') {
                          Logger.log('error', `❌ 触发官方限流！进入强制休息模式...`);
-                         Logger.updateStatus('RESTING');
                          
                          const restMins = Math.max(this.config.restTime, 10);
-                         Logger.log('warn', `将在 ${restMins} 分钟后尝试恢复...`);
-                         await Humanizer.sleep(restMins * 60 * 1000);
+                         await this.restWithCountdown(restMins);
                          
                          Logger.log('info', '限流休息结束，尝试继续...');
                          Logger.updateStatus('ACTIVE');
@@ -560,17 +600,12 @@
                     this.processedSet.add(uniqueId);
                     Logger.updateStats(this.stats.followed, this.stats.skipped);
                     processedInThisPass++;
-                    
-                    if (actionResult.status === 'SUCCESS') {
-                        await Humanizer.randomDelay(this.config.minInterval, this.config.maxInterval);
-                    }
                 }
 
                 // === Batch Handling (Shared) ===
                 if (batchCount >= this.config.batchSize) {
-                    Logger.log('warn', `达到批次限制 (${batchCount})。休息 ${this.config.restTime} 分钟...`);
-                    Logger.updateStatus('RESTING');
-                    await Humanizer.sleep(this.config.restTime * 60 * 1000);
+                    Logger.log('warn', `达到批次限制 (${batchCount})。准备休息...`);
+                    await this.restWithCountdown(this.config.restTime);
                     Logger.log('info', '休息结束，继续运行...');
                     Logger.updateStatus('ACTIVE');
                     batchCount = 0;
@@ -612,7 +647,9 @@
         sendResponse({ 
             isRunning: engine.isRunning, 
             status: engine.isRunning ? 'ACTIVE' : 'IDLE',
-            mode: engine.mode 
+            mode: engine.mode,
+            stats: engine.stats,
+            logs: engine.currentSession ? engine.currentSession.logs : []
         });
       }
     });
