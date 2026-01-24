@@ -16,6 +16,15 @@
       <button class="tab-btn" data-tab="history">运行记录</button>
     </nav>
 
+    <!-- Quota & Pro Status Bar -->
+    <div class="quota-bar" id="quota-banner">
+      <div class="quota-info">
+        <span class="quota-badge" id="license-badge">FREE</span>
+        <span class="quota-text" id="quota-usage-text">月度额度: 加载中...</span>
+      </div>
+      <button class="btn-upgrade-mini" id="btn-open-license">升级 PRO</button>
+    </div>
+
     <!-- VIEW: DASHBOARD -->
     <div id="view-dashboard" class="tab-view active">
       
@@ -147,6 +156,26 @@
             <div class="qr-scan-line"></div>
           </div>
           <div class="qr-footer">支付宝 / 微信支付</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: LICENSE -->
+    <div id="modal-license" class="modal-overlay">
+      <div class="modal-card">
+        <button id="btn-close-license" class="modal-close-btn">×</button>
+        <div class="modal-content">
+          <div class="qr-title">升级 X-Follow Pro</div>
+          <p class="license-desc">解锁无限关注额度，支持 AI 优先扫描与更多高级功能。</p>
+          
+          <div class="license-input-wrapper">
+            <input type="text" id="input-license-key" placeholder="请输入激活码 (XFP-xxxx-yyyy)" class="license-input">
+            <button id="btn-activate-license" class="btn-primary" style="margin-top: 12px; width: 100%;">立即激活</button>
+          </div>
+          
+          <div class="license-footer">
+            <a href="https://your-website.com/buy" target="_blank" id="link-buy-pro">没有激活码？点击购买 →</a>
+          </div>
         </div>
       </div>
     </div>

@@ -294,10 +294,34 @@
       constructor() {
         this.isRunning = false;
         this.config = {};
+        this.license = { type: 'FREE' };
+        this.usage = { followCount: 0, unfollowCount: 0 };
         this.stats = { followed: 0, skipped: 0 };
         this.processedSet = new Set();
         this.currentSession = null;
         this.mode = 'FOLLOW'; // 'FOLLOW' or 'UNFOLLOW'
+      }
+
+      async syncLicense() {
+          const result = await chrome.storage.local.get(['license', 'usage']);
+          this.license = result.license || { type: 'FREE' };
+          this.usage = result.usage || { followCount: 0, unfollowCount: 0 };
+      }
+
+      async updateUsageInStorage() {
+          // Re-fetch usage to ensure we don't overwrite if another tab updated it (though rare)
+          const result = await chrome.storage.local.get(['usage']);
+          const currentMonth = new Date().toISOString().slice(0, 7);
+          let latestUsage = result.usage || { currentMonth, followCount: 0, unfollowCount: 0 };
+          
+          if (this.mode === 'UNFOLLOW') {
+              latestUsage.unfollowCount++;
+          } else {
+              latestUsage.followCount++;
+          }
+          
+          await chrome.storage.local.set({ usage: latestUsage });
+          this.usage = latestUsage;
       }
 
       isValidPage() {
@@ -309,8 +333,21 @@
           return /^https?:\/\/(?:twitter|x)\.com\/\w+\/status\/\d+/.test(window.location.href);
       }
   
-      start(config) {
+      async start(config) {
         if (this.isRunning) return;
+
+        await this.syncLicense();
+        
+        // Initial Quota Check
+        if (this.license.type === 'FREE') {
+            const totalUsed = this.usage.followCount + this.usage.unfollowCount;
+            if (totalUsed >= 500) {
+                const msg = '本月 500 次免费额度已用完，请升级 Pro 版解锁无限操作。';
+                Logger.log('error', msg);
+                alert(`X-Follow 限制提示：\n\n${msg}`);
+                return;
+            }
+        }
         
         this.mode = config.mode || 'FOLLOW';
 
@@ -424,11 +461,25 @@
   
         try {
             while (this.isRunning) {
+            // Re-sync quota inside loop in case it changed
+            await this.syncLicense();
+
             const targets = DOMScanner.findTargets();
             let processedInThisPass = 0;
     
             for (const targetEl of targets) {
                 if (!this.isRunning) break;
+
+                // Quota Enforcement (Check BEFORE action)
+                if (this.license.type === 'FREE') {
+                    const currentTotal = this.usage.followCount + this.usage.unfollowCount;
+                    if (currentTotal >= 500) {
+                        Logger.log('error', '⚠️ 免费额度已耗尽 (500/500)。引擎自动停止。');
+                        this.stop();
+                        alert('X-Follow: 免费额度已用完。请升级至 Pro 版以继续使用。');
+                        break;
+                    }
+                }
                 
                 const info = DOMScanner.analyzeTarget(targetEl);
                 if (!info) continue;
@@ -479,6 +530,7 @@
                         if (actionResult.status === 'SUCCESS') {
                             this.stats.followed++; // Reuse 'followed' counter as 'actioned'
                             batchCount++;
+                            await this.updateUsageInStorage();
                             Visualizer.markProcessed(info.element, 'UNFOLLOWED');
                             Logger.log('warn', `已取关 ${info.handle}`);
                             
@@ -578,6 +630,7 @@
                     if (actionResult.status === 'SUCCESS') {
                         this.stats.followed++;
                         batchCount++;
+                        await this.updateUsageInStorage();
                         Visualizer.markProcessed(info.element, 'SUCCESS');
                         Logger.log('success', `已关注 ${info.handle}`);
                         await Humanizer.randomDelay(this.config.minInterval, this.config.maxInterval);

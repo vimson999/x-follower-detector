@@ -264,8 +264,106 @@ input:checked + .slider:before { transform: translateX(16px); background-color: 
 
 
 
-/* --- Modal Overlay --- */
+/* Quota Bar */
+.quota-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 11px;
+}
 
+.quota-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.quota-badge {
+    background: #536471;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 10px;
+}
+
+.quota-badge.pro {
+    background: linear-gradient(135deg, #ffd700, #ff8c00);
+    color: #000;
+}
+
+.quota-text {
+    color: var(--text-secondary);
+}
+
+.btn-upgrade-mini {
+    background: transparent;
+    border: 1px solid var(--accent-primary);
+    color: var(--accent-primary);
+    padding: 2px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 10px;
+    transition: all 0.2s;
+}
+
+.btn-upgrade-mini:hover {
+    background: var(--accent-primary);
+    color: #000;
+}
+
+/* License Modal Specifics */
+.license-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.license-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    color: white;
+    font-family: monospace;
+    text-align: center;
+    font-size: 14px;
+}
+
+.license-input:focus {
+    border-color: var(--accent-primary);
+    outline: none;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.license-footer {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.license-footer a {
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.license-footer a:hover {
+    text-decoration: underline;
+}
+
+.modal-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Modal Overlay & Card (Shared with Donate) */
 .modal-overlay {
 
   position: fixed;

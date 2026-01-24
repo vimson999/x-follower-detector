@@ -3,6 +3,8 @@
  * Modernized for "Top-tier Aesthetic"
  */
 
+import { validateLicenseKey } from './license_utils.js';
+
 const DEFAULT_SETTINGS = {
   minInterval: 3,
   maxInterval: 8,
@@ -10,6 +12,8 @@ const DEFAULT_SETTINGS = {
   restTime: 15,
   onlyBlueTick: false
 };
+
+const QUOTA_LIMIT = 500;
 
 const elements = {
   inputs: {
@@ -25,6 +29,22 @@ const elements = {
     statusPulse: document.getElementById('status-pulse'),
     statusText: document.getElementById('status-text'),
   },
+  // License & Quota
+  quota: {
+      banner: document.getElementById('quota-banner'),
+      badge: document.getElementById('license-badge'),
+      usageText: document.getElementById('quota-usage-text')
+  },
+  modals: {
+      license: document.getElementById('modal-license'),
+      donate: document.getElementById('modal-donate')
+  },
+  btnOpenLicense: document.getElementById('btn-open-license'),
+  btnCloseLicense: document.getElementById('btn-close-license'),
+  btnActivateLicense: document.getElementById('btn-activate-license'),
+  inputLicenseKey: document.getElementById('input-license-key'),
+  linkBuyPro: document.getElementById('link-buy-pro'),
+
   btnStart: document.getElementById('btn-start'),
   logContainer: document.getElementById('log-container'),
   btnClearLogs: document.getElementById('btn-clear-logs'),
@@ -45,12 +65,58 @@ const ICON_PLAY = `<svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" str
 const ICON_STOP = `<svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>`;
 const ICON_LINK = `<svg class="icon-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
 
+// GA Event Proxy
+function trackEvent(name, params = {}) {
+    chrome.runtime.sendMessage({
+        type: 'GA_EVENT',
+        payload: { name, params }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   await loadSettings();
+  await checkAndResetQuota();
   setupEventListeners();
   pingContentScript();
   renderHistoryList();
+  updateQuotaUI();
 });
+
+async function checkAndResetQuota() {
+    const result = await chrome.storage.local.get(['usage']);
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    
+    if (!result.usage || result.usage.currentMonth !== currentMonth) {
+        await chrome.storage.local.set({
+            usage: {
+                currentMonth: currentMonth,
+                followCount: 0,
+                unfollowCount: 0
+            }
+        });
+    }
+}
+
+async function updateQuotaUI() {
+    const result = await chrome.storage.local.get(['license', 'usage']);
+    const license = result.license || { type: 'FREE' };
+    const usage = result.usage || { followCount: 0, unfollowCount: 0 };
+    
+    const totalUsed = usage.followCount + usage.unfollowCount;
+    
+    if (license.type === 'PRO') {
+        elements.quota.badge.innerText = 'PRO';
+        elements.quota.badge.classList.add('pro');
+        elements.quota.usageText.innerText = '无限制关注 (Pro 已激活)';
+        elements.btnOpenLicense.innerText = '管理订阅';
+    } else {
+        elements.quota.badge.innerText = 'FREE';
+        elements.quota.badge.classList.remove('pro');
+        const remaining = Math.max(0, QUOTA_LIMIT - totalUsed);
+        elements.quota.usageText.innerText = `本月剩余: ${remaining} / ${QUOTA_LIMIT}`;
+        elements.btnOpenLicense.innerText = '升级 PRO';
+    }
+}
 
 async function loadSettings() {
   const result = await chrome.storage.local.get(['settings', 'activityLogs']);
@@ -108,6 +174,49 @@ function setupEventListeners() {
   });
   
   elements.btnStart.addEventListener('click', toggleEngine);
+
+  // License Modal Logic
+  elements.btnOpenLicense.addEventListener('click', () => {
+      elements.modals.license.classList.add('active');
+      trackEvent('upgrade_click');
+  });
+
+  elements.btnCloseLicense.addEventListener('click', () => {
+      elements.modals.license.classList.remove('active');
+  });
+
+  elements.linkBuyPro.addEventListener('click', () => {
+      trackEvent('buy_link_click');
+  });
+
+  elements.btnActivateLicense.addEventListener('click', async () => {
+      const key = elements.inputLicenseKey.value.trim();
+      if (!key) return alert('请输入激活码');
+
+      elements.btnActivateLicense.innerText = '验证中...';
+      elements.btnActivateLicense.disabled = true;
+
+      const isValid = await validateLicenseKey(key);
+
+      if (isValid) {
+          await chrome.storage.local.set({
+              license: {
+                  key: key,
+                  type: 'PRO',
+                  activatedAt: new Date().toISOString()
+              }
+          });
+          trackEvent('license_activated', { key_prefix: key.substring(0, 4) });
+          alert('恭喜！Pro 版激活成功 🎉');
+          elements.modals.license.classList.remove('active');
+          updateQuotaUI();
+      } else {
+          alert('激活失败：无效的激活码，请检查输入或联系客服。');
+      }
+
+      elements.btnActivateLicense.innerText = '立即激活';
+      elements.btnActivateLicense.disabled = false;
+  });
 
   elements.btnClearLogs.addEventListener('click', async () => {
     elements.logContainer.innerHTML = '';
