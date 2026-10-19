@@ -34,7 +34,8 @@ const elements = {
   tabs: document.querySelectorAll('.tab-btn'),
   views: {
       dashboard: document.getElementById('view-dashboard'),
-      history: document.getElementById('view-history')
+      history: document.getElementById('view-history'),
+      collection: document.getElementById('view-collection')
   }
 };
 
@@ -124,8 +125,12 @@ function setupEventListeners() {
           elements.tabs.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
 
-          // 2. Handle Logic based on Tab
-          if (tabName === 'history') {
+          // Collection is independent of the follow/unfollow engine mode.
+          Object.values(elements.views).forEach(view => view.classList.remove('active'));
+          if (tabName === 'collection') {
+              elements.views.collection.classList.add('active');
+              window.XFollowCollection.refresh();
+          } else if (tabName === 'history') {
               // Hide Dashboard, Show History
               elements.views.dashboard.classList.remove('active');
               elements.views.history.classList.add('active');
@@ -292,6 +297,7 @@ function activateTabByMode(mode) {
         // Deactivate all
         elements.tabs.forEach(b => b.classList.remove('active'));
         elements.views.history.classList.remove('active');
+        elements.views.collection.classList.remove('active');
         
         // Activate target
         tabBtn.classList.add('active');

@@ -14,6 +14,7 @@
       <button class="tab-btn active" data-tab="follow">关注助手</button>
       <button class="tab-btn" data-tab="unfollow">取关助手</button>
       <button class="tab-btn" data-tab="history">运行记录</button>
+      <button class="tab-btn" data-tab="collection">采集数据</button>
     </nav>
 
     <!-- VIEW: DASHBOARD -->
@@ -135,6 +136,23 @@
       </div>
     </div>
     
+    <div id="view-collection" class="tab-view">
+      <div class="history-header">
+        <span class="history-title">用户时间线采集</span>
+        <button id="btn-refresh-collection" class="btn-clear">刷新</button>
+      </div>
+      <p class="capture-hint">默认不采集。在用户的「帖子」或「回复」点击开始，再向下滚动加载；切换页面或刷新后需重新开始。</p>
+      <div class="capture-controls">
+        <p id="capture-target" role="status">正在读取当前页面…</p>
+        <div class="capture-actions">
+          <button id="btn-capture-start" class="capture-export" type="button" disabled>开始采集</button>
+          <button id="btn-capture-stop" class="capture-export" type="button" disabled>停止采集</button>
+        </div>
+      </div>
+      <p id="capture-feedback" role="status" aria-live="polite"></p>
+      <div id="collection-list" class="history-list"></div>
+    </div>
+
     <!-- MODAL: DONATE -->
     <div id="modal-donate" class="modal-overlay">
       <div class="modal-card">
@@ -152,6 +170,8 @@
     </div>
 
   </div>
+  <script src="../collector/core.js"></script>
+  <script src="collection.js" defer></script>
   <script src="main.js" type="module"></script>
 </body>
 </html>

@@ -501,3 +501,22 @@ input:checked + .slider:before { transform: translateX(16px); background-color: 
   letter-spacing: 0.5px;
 
 }
+
+/* Timeline collections */
+.capture-hint, .capture-empty { color: var(--text-secondary); font-size: 12px; line-height: 1.6; padding: 12px 20px; margin: 0; }
+#capture-feedback { margin: 0; padding: 0 20px 10px; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+#capture-feedback:empty { display: none; }
+.capture-error { color: #ff7e92; }
+.capture-card { margin: 0 14px 12px; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); }
+.capture-owner { margin: 0 0 6px; font-size: 14px; overflow-wrap: anywhere; }
+.capture-meta { margin: 4px 0; color: var(--text-secondary); font-size: 11px; }
+.capture-count { margin: 10px 0; font-size: 13px; }
+.capture-export { margin-top: 10px; padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-surface-active); color: var(--text-primary); cursor: pointer; }
+.capture-export:disabled { opacity: .5; cursor: wait; }
+.capture-export:focus-visible, .tab-btn:focus-visible, .btn-clear:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+
+.capture-controls { padding: 0 20px 12px; }
+#capture-target { font-size: 12px; margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.capture-actions { display:flex; gap:8px; }
+.capture-clear { color:#ff7e92; }
+#btn-capture-start { background:var(--accent-primary);color:white; }

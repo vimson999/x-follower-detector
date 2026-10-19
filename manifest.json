@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "X-Follow Assistant Pro",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Professional automated follower management for X (Twitter) with anti-ban heuristics.",
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "unlimitedStorage"
   ],
   "host_permissions": [
     "https://twitter.com/*",
@@ -22,8 +23,35 @@
         "https://twitter.com/*",
         "https://x.com/*"
       ],
-      "css": ["src/content/style.css"],
-      "js": ["src/content/content.js"],
+      "js": [
+        "src/collector/bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*"
+      ],
+      "js": [
+        "src/collector/core.js",
+        "src/collector/network.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://twitter.com/*",
+        "https://x.com/*"
+      ],
+      "css": [
+        "src/content/style.css"
+      ],
+      "js": [
+        "src/content/content.js"
+      ],
       "run_at": "document_end"
     }
   ],
@@ -31,5 +59,9 @@
     "16": "src/assets/icon16.png",
     "48": "src/assets/icon48.png",
     "128": "src/assets/icon128.png"
+  },
+  "minimum_chrome_version": "111",
+  "background": {
+    "service_worker": "src/collector/background.js"
   }
 }
