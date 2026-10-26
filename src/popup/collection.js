@@ -7,6 +7,9 @@
   const startButton = document.getElementById('btn-capture-start');
   const stopButton = document.getElementById('btn-capture-stop');
   const target = document.getElementById('capture-target');
+  const scrollStart = document.getElementById('btn-scroll-start');
+  const scrollStop = document.getElementById('btn-scroll-stop');
+  const scrollStatus = document.getElementById('scroll-status');
   let controlBusy = false;
   const date = value => new Date(value).toLocaleString('zh-CN', { hour12: false });
   function node(tag, className, text) {
@@ -52,15 +55,20 @@
   }
   async function refreshControls() {
     if (controlBusy) return;
-    startButton.disabled = true;stopButton.disabled = true;
+    startButton.disabled = true;stopButton.disabled = true;scrollStart.disabled=true;scrollStop.disabled=true;
     try {
       const state = await current();
       if (controlBusy) return;
       if (!state.profile) {target.textContent='请打开用户主页的帖子或回复 Tab';return;}
       const active = !!state.result.session;
+      scrollStart.disabled = !!state.result.scrolling;
+      scrollStop.disabled = !state.result.scrolling;
+      scrollStatus.textContent = state.result.scrolling ? '自动滚动中（每 2.5 秒向下一段）' : '滚动已停止';
       target.textContent = `${active ? '采集中' : '已停止'}：@${state.profile.handle} · ${labels[state.profile.tab]}`;
+      if (active) target.textContent += ` · 收到 ${state.result.session.responses || 0} 次响应，解析 ${state.result.session.parsedItems || 0} 条（含重复）${state.result.session.responses ? '' : '；等待新的时间线请求，请向下滚动加载，缓存内容不会补采'}`;
+      if (active && state.result.session.lastPageEmpty) target.textContent += state.result.session.terminated ? '；接口已返回列表末尾，本次没有帖子' : '；最近响应没有帖子内容';
       startButton.disabled = active;stopButton.disabled = !active;
-    } catch {target.textContent='请打开 X 用户主页，并刷新页面后使用采集控制。';}
+    } catch (error) {target.textContent=`无法连接采集脚本：${error.message}。请刷新 X 网页后重试。`;}
   }
   async function runControl(type) {
     if (controlBusy) return;
@@ -70,7 +78,7 @@
       const result = await chrome.tabs.sendMessage(state.tab.id,{type});
       if (!result?.ok) throw Error(result?.error || '操作失败');
       feedback.classList.remove('capture-error');
-      feedback.textContent = type === 'CAPTURE_START' ? '已开始。请向下滚动触发新请求；开始前已加载的内容不会补采。' : '已停止采集，已保存的数据仍可导出。';
+      feedback.textContent = {CAPTURE_START:'采集已开始。可以手动浏览、切换帖子/回复，或另行开始滚动。', CAPTURE_STOP:'采集已停止，滚动状态不变。已保存的数据可在下方导出。', SCROLL_START:'滚动已开始，采集状态不变。', SCROLL_STOP:'滚动已停止，采集状态不变。'}[type];
     } catch (error) {showError(error);}
     finally {controlBusy=false;await refreshControls();}
   }
@@ -93,7 +101,12 @@
       const data = await chrome.storage.local.get(['captureIndex', 'captureError']);
       if (version !== refreshVersion) return;
       list.replaceChildren();
-      feedback.textContent = data.captureError ? `最近保存失败（${date(data.captureError.time)}）：${data.captureError.message}。请刷新页面重新加载相关内容。` : '';
+      const error=data.captureError;
+      feedback.textContent = error
+        ? ['rate_limit','request'].includes(error.kind)
+          ? `最近请求提示（${date(error.time)}）：${error.message}`
+          : `最近保存失败（${date(error.time)}）：${error.message}。请检查扩展错误后重试。`
+        : '';
       feedback.classList.toggle('capture-error', !!data.captureError);
       const entries = Object.entries(data.captureIndex || {}).sort((a,b) => b[1].lastCapturedAt.localeCompare(a[1].lastCapturedAt));
       if (!entries.length) {
@@ -124,6 +137,8 @@
   }
   startButton.addEventListener('click',()=>runControl('CAPTURE_START'));
   stopButton.addEventListener('click',()=>runControl('CAPTURE_STOP'));
+  scrollStart.addEventListener('click',()=>runControl('SCROLL_START'));
+  scrollStop.addEventListener('click',()=>runControl('SCROLL_STOP'));
   document.getElementById('btn-refresh-collection').addEventListener('click', refresh);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'session' && changes.captureSessions) refreshControls();

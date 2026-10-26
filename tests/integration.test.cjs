@@ -35,7 +35,7 @@ test('fetch and XHR capture request-time owner/tab without consuming page respon
   const xhr = new ctx.XMLHttpRequest();
   xhr.open('GET', api); xhr.send();
   location.href = 'https://x.com/bob';
-  xhr.status = 200; xhr.responseType = ''; xhr.responseText = '{"data":{}}'; xhr.listener();
+  xhr.status = 200; xhr.responseType = ''; xhr.responseText = '{"data":{}}'; xhr.listener(); await tick();
   assert.equal(sent.filter(m => m.type === 'RESPONSE').length, 2);
   assert.equal(sent.filter(m => m.type === 'RESPONSE')[1].context.handle, 'alice');
 });
@@ -88,7 +88,7 @@ test('POST Request clones body and captures original route; reused XHR ignores s
   ctx.location.href='https://x.com/alice';xhr.open('GET',url('1'));xhr.send();
   ctx.location.href='https://x.com/bob';vm.runInContext("dispatchMessage({source:window,origin:location.origin,data:{channel:'X_FOLLOW_CAPTURE_V1',type:'CONTROL',session:{token:'bob',handle:'bob',tab:'posts'}}})",ctx);xhr.open('GET',url('2'));xhr.send();
   xhr.status=200;xhr.responseType='json';xhr.response={data:{}};
-  xhr.listeners.forEach(fn=>fn());
+  xhr.listeners.forEach(fn=>fn()); await new Promise(r=>setTimeout(r,0));
   const xhrMessages=messages.filter(m=>m.type==='RESPONSE').slice(1);
   assert.equal(xhrMessages.length,1);
   assert.equal(xhrMessages[0].context.handle,'bob');

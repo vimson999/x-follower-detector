@@ -1,0 +1,303 @@
+{
+  "operation": "UserOriginalsTimeline",
+  "variables": {
+    "userId": "2042909540102877184",
+    "cursor": "DAAHCgABHU_ns5sAnEQLAAIAAAATMjExMjE1ODU3NzkxODExNjI0MggAAwAAAAEAAA"
+  },
+  "response": {
+    "data": {
+      "user": {
+        "result": {
+          "__typename": "User",
+          "timeline": {
+            "timeline": {
+              "instructions": [
+                {
+                  "entry": {
+                    "content": {
+                      "__typename": "TimelineTimelineItem",
+                      "clientEventInfo": {
+                        "component": "pinned_tweets",
+                        "element": "tweet"
+                      },
+                      "entryType": "TimelineTimelineItem",
+                      "itemContent": {
+                        "__typename": "TimelineTweet",
+                        "itemType": "TimelineTweet",
+                        "socialContext": {
+                          "contextType": "Pin",
+                          "text": "已置顶",
+                          "type": "TimelineGeneralContext"
+                        },
+                        "tweetDisplayType": "Tweet",
+                        "tweet_results": {
+                          "result": {
+                            "__typename": "Tweet",
+                            "article": {
+                              "article_results": {
+                                "result": {
+                                  "cover_media": {
+                                    "id": "QXBpTWVkaWE6DAAFCgABHUmDdfvbUAAKAAIcWd9nJhawAAAA",
+                                    "media_id": "2110362443159654400",
+                                    "media_info": {
+                                      "__typename": "ApiImage",
+                                      "color_info": {
+                                        "palette": [
+                                          {
+                                            "percentage": 58.04,
+                                            "rgb": {
+                                              "blue": 181,
+                                              "green": 211,
+                                              "red": 231
+                                            }
+                                          },
+                                          {
+                                            "percentage": 15.01,
+                                            "rgb": {
+                                              "blue": 34,
+                                              "green": 41,
+                                              "red": 44
+                                            }
+                                          },
+                                          {
+                                            "percentage": 9.33,
+                                            "rgb": {
+                                              "blue": 90,
+                                              "green": 153,
+                                              "red": 204
+                                            }
+                                          },
+                                          {
+                                            "percentage": 6.19,
+                                            "rgb": {
+                                              "blue": 5,
+                                              "green": 188,
+                                              "red": 234
+                                            }
+                                          },
+                                          {
+                                            "percentage": 5.21,
+                                            "rgb": {
+                                              "blue": 38,
+                                              "green": 95,
+                                              "red": 122
+                                            }
+                                          }
+                                        ]
+                                      },
+                                      "original_img_height": 766,
+                                      "original_img_url": "https://pbs.twimg.com/media/HUmDdfvbUAAbesy.jpg",
+                                      "original_img_width": 1916
+                                    },
+                                    "media_key": "3_2110362443159654400"
+                                  },
+                                  "id": "QXJ0aWNsZUVudGl0eToyMTEwMzYxODY4MDUzNDEzODg4",
+                                  "lifecycle_state": {
+                                    "modified_at_secs": 1791984965
+                                  },
+                                  "metadata": {
+                                    "first_published_at_secs": 1791984677
+                                  },
+                                  "preview_text": "如果今天把你彻底清零，扔回 20 岁。\n没背景，没人脉，全身上下只有一部手机，每个月扣完房租只剩 1000 块生活费。\n你第一步会干嘛？\n几乎所有人的本能反应都是：赶紧找个活干，赶紧找条路子搞钱。",
+                                  "rest_id": "2110361868053413888",
+                                  "title": "兜里只剩 1000 块的时候，先别急着去赚钱"
+                                }
+                              }
+                            },
+                            "card": {
+                              "rest_id": "https://t.co/NYCjvfXynI"
+                            },
+                            "cashtag_attachments": [],
+                            "core": {
+                              "user_results": {
+                                "result": {
+                                  "__typename": "User",
+                                  "action_counts": {
+                                    "favorites_count": 4819
+                                  },
+                                  "affiliates_highlighted_label": {},
+                                  "avatar": {
+                                    "image_url": "https://pbs.twimg.com/profile_images/2110050059773775872/qzIan_fq_normal.jpg"
+                                  },
+                                  "banner": {
+                                    "image_url": "https://pbs.twimg.com/profile_banners/2042909540102877184/1791910117"
+                                  },
+                                  "core": {
+                                    "created_at": "Sat Apr 11 10:17:07 +0000 2026",
+                                    "name": "余电 Zero",
+                                    "screen_name": "Yudian_Zero"
+                                  },
+                                  "follow_request_sent": false,
+                                  "has_graduated_access": true,
+                                  "id": "VXNlcjoyMDQyOTA5NTQwMTAyODc3MTg0",
+                                  "is_blue_verified": true,
+                                  "location": {
+                                    "location": ""
+                                  },
+                                  "media_permissions": {
+                                    "can_media_tag": false
+                                  },
+                                  "notifications_settings": {
+                                    "notifications_enabled": false
+                                  },
+                                  "parody_commentary_fan_label": "None",
+                                  "pinned_items": {
+                                    "tweet_ids_str": [
+                                      "2110362813441138945"
+                                    ]
+                                  },
+                                  "possibly_sensitive": false,
+                                  "privacy": {
+                                    "protected": false
+                                  },
+                                  "profile_bio": {
+                                    "description": "低功耗运行，高密度观察。\n拿 AI 当撬棍，顺便砸碎自己的认知惯性。\n待机时间长，只对有效信号通电。",
+                                    "entities": {
+                                      "description": {}
+                                    }
+                                  },
+                                  "profile_description_language": "zh",
+                                  "profile_image_shape": "Circle",
+                                  "profile_metadata": {
+                                    "profile_interstitial_type": ""
+                                  },
+                                  "profile_translation": {
+                                    "translator_type": "none"
+                                  },
+                                  "relationship_counts": {
+                                    "followers": 4257,
+                                    "following": 4271
+                                  },
+                                  "relationship_perspectives": {
+                                    "blocked_by": false,
+                                    "blocking": false,
+                                    "followed_by": true,
+                                    "following": true,
+                                    "live_following": false,
+                                    "muting": false
+                                  },
+                                  "rest_id": "2042909540102877184",
+                                  "super_follow_eligible": false,
+                                  "super_followed_by": false,
+                                  "super_following": false,
+                                  "tweet_counts": {
+                                    "media_tweets": 63,
+                                    "tweets": 7140
+                                  },
+                                  "verification": {
+                                    "verified": false
+                                  },
+                                  "website": {
+                                    "url": ""
+                                  }
+                                }
+                              }
+                            },
+                            "edit_control": {
+                              "edit_tweet_ids": [
+                                "2110362813441138945"
+                              ],
+                              "editable_until_msecs": "1791988278000",
+                              "edits_remaining": "5",
+                              "is_edit_eligible": false
+                            },
+                            "grok_analysis_button": true,
+                            "grok_annotations": {
+                              "is_image_editable_by_grok": false
+                            },
+                            "grok_translated_post_with_availability": {
+                              "is_available": false
+                            },
+                            "is_translatable": false,
+                            "legacy": {
+                              "bookmark_count": 3,
+                              "bookmarked": false,
+                              "conversation_id_str": "2110362813441138945",
+                              "created_at": "Wed Oct 14 13:31:18 +0000 2026",
+                              "display_text_range": [
+                                0,
+                                23
+                              ],
+                              "entities": {
+                                "urls": [
+                                  {
+                                    "display_url": "x.com/i/article/2110…",
+                                    "expanded_url": "https://x.com/i/article/2110361868053413888",
+                                    "indices": [
+                                      0,
+                                      23
+                                    ],
+                                    "url": "https://t.co/NYCjvfXynI"
+                                  }
+                                ]
+                              },
+                              "favorite_count": 87,
+                              "favorited": false,
+                              "full_text": "https://t.co/NYCjvfXynI",
+                              "id_str": "2110362813441138945",
+                              "is_quote_status": false,
+                              "lang": "zxx",
+                              "possibly_sensitive": false,
+                              "possibly_sensitive_editable": true,
+                              "quote_count": 0,
+                              "reply_count": 31,
+                              "retweet_count": 0,
+                              "retweeted": false,
+                              "user_id_str": "2042909540102877184"
+                            },
+                            "quick_promote_eligibility": {
+                              "eligibility": "IneligibleTweet"
+                            },
+                            "rest_id": "2110362813441138945",
+                            "unmention_data": {},
+                            "views": {
+                              "count": "2297",
+                              "state": "EnabledWithCount"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "entryId": "tweet-2110362813441138945",
+                    "sortIndex": "2112161508845722692"
+                  },
+                  "type": "TimelinePinEntry"
+                },
+                {
+                  "entries": [
+                    {
+                      "content": {
+                        "__typename": "TimelineTimelineCursor",
+                        "cursorType": "Top",
+                        "entryType": "TimelineTimelineCursor",
+                        "value": "DAAHCgABHU_ns5sAw1ULAAIAAAATMjExMjE1ODU3NzkxODExNjI0MggAAwAAAAEAAA"
+                      },
+                      "entryId": "cursor-top-2112161508845722693",
+                      "sortIndex": "2112161508845722693"
+                    },
+                    {
+                      "content": {
+                        "__typename": "TimelineTimelineCursor",
+                        "cursorType": "Bottom",
+                        "entryType": "TimelineTimelineCursor",
+                        "value": "DAAHCgABHU_ns5sAnEELAAIAAAATMjExMjE1ODU3NzkxODExNjI0MggAAwAAAAIAAA"
+                      },
+                      "entryId": "cursor-bottom-2112161508845722691",
+                      "sortIndex": "2112161508845722691"
+                    }
+                  ],
+                  "type": "TimelineAddEntries"
+                }
+              ],
+              "metadata": {
+                "scribeConfig": {
+                  "page": "profileOriginals"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

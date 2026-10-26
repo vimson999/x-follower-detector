@@ -90,3 +90,39 @@ test('latest missing metric is null, not a stale value labeled as current', () =
   const b = C.mergeBucket(initial,C.parseBatch(request(),payload([entry(latest)]),time2));
   assert.equal(b.items['100'].metrics.views, null);
 });
+
+test('real HAR UserRepliesTimeline request is recognized; terminal page is genuinely empty', () => {
+  const fixture = JSON.parse(fs.readFileSync('tests/fixtures/replies-terminal-page.json','utf8'));
+  const url = `https://x.com/i/api/graphql/real/${fixture.operation}?variables=${encodeURIComponent(JSON.stringify(fixture.variables))}`;
+  const context = C.requestContext(url, 'https://x.com/Yudian_Zero/with_replies');
+  assert.ok(context, 'the real endpoint must not be discarded before parsing');
+  assert.equal(context.operation, 'UserRepliesTimeline');
+  assert.equal(context.tab, 'replies');
+  const batch = C.parseBatch(context, fixture.response);
+  assert.equal(batch.items.length, 0);
+  assert.equal(batch.terminated, true);
+  assert.equal(C.requestContext(url, 'https://x.com/Yudian_Zero'), null);
+});
+
+test('v2 HAR originals and replies retain real texts, IDs, authors and separate categories', () => {
+  for (const [name,tab,expectedCount] of [['posts-page','posts',1],['replies-page','replies',4]]) {
+    const fixture=JSON.parse(fs.readFileSync(`tests/fixtures/${name}.json`,'utf8'));
+    const url=`https://x.com/i/api/graphql/real/${fixture.operation}?variables=${encodeURIComponent(JSON.stringify(fixture.variables))}`;
+    const page=`https://x.com/Yudian_Zero${tab==='replies'?'/with_replies':''}`;
+    const context=C.requestContext(url,page);
+    assert.ok(context, `${fixture.operation} must be captured`);
+    const batch=C.parseBatch(context,fixture.response);
+    assert.equal(batch.tab,tab);assert.equal(batch.items.length,expectedCount);
+    const instructions=fixture.response.data.user.result.timeline.timeline.instructions;
+    const rawTweets=tab==='posts'
+      ? [instructions[0].entry.content.itemContent.tweet_results.result]
+      : instructions[0].entries.filter(e=>e.content.items).flatMap(e=>e.content.items.map(i=>i.item.itemContent.tweet_results.result));
+    assert.deepEqual(Array.from(batch.items,t=>t.id),rawTweets.map(t=>t.rest_id));
+    assert.deepEqual(Array.from(batch.items,t=>t.text),rawTweets.map(t=>t.legacy.full_text));
+    assert.deepEqual(Array.from(batch.items,t=>t.author.id),rawTweets.map(t=>t.core.user_results.result.rest_id));
+    const bucket=C.mergeBucket(null,batch);
+    const exported=C.exportBucket(C.mergeBucket(bucket,batch));
+    assert.equal(exported.count,expectedCount);
+    assert.equal(exported.tab,tab);
+  }
+});

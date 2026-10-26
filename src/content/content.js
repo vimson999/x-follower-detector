@@ -95,7 +95,7 @@
             if (!avatarContainer.querySelector('.xf-badge-bye')) {
                 const badge = document.createElement('div');
                 badge.className = 'xf-badge-bye';
-                badge.innerText = 'Bye';
+                badge.innerText = '疑似未回关';
                 
                 // Ensure relative positioning on parent for absolute badge
                 const parentStyle = window.getComputedStyle(avatarContainer);
@@ -360,6 +360,7 @@
           this.currentSession.endTime = new Date().toLocaleString();
           this.currentSession.stats = { ...this.stats };
           this.currentSession.mode = this.mode;
+          this.currentSession.unfollowAction = this.config.unfollowAction === 'AUTO' ? 'AUTO' : 'MARK';
 
           try {
               const result = await chrome.storage.local.get(['history']);
@@ -391,7 +392,7 @@
         Logger.log('success', '任务完成：没有发现更多用户。');
         Logger.updateStatus('FINISHED');
         await this.saveSession();
-        alert('X-Follow: 任务已完成，已无更多用户可关注。');
+        alert('X-Follow: 扫描完成，未发现更多待处理用户。');
       }
 
       // New Helper: Rest with UI Countdown (Timestamp based)
@@ -450,18 +451,15 @@
                         // Visualizer.markProcessed(info.element, 'SKIPPED'); // Optional: Don't mark safe users to keep UI clean? Or mark them green?
                         continue;
                     } else {
-                        // They DO NOT follow back -> Target acquired
-                        
-                        // Check Blue Tick Gate
-                        if (this.config.onlyBlueTick && info.isVerified) {
-                             // If settings say "Only Blue Tick" (usually means only follow blue tick), 
-                             // for Unfollow, maybe reuse it as "Protect Blue Ticks"? 
-                             // Let's assume for Unfollow mode, we might want to Ignore Blue Ticks (don't unfollow them)?
-                             // Or stick to simple logic: config.onlyBlueTick usually implies targeting.
-                             // Let's IGNORE this setting for Unfollow for now to be safe, or treat it as "Unfollow only Verified"?
-                             // Better interpretation: "Only process verified users".
-                             // But standard use case is "Unfollow everyone who doesn't follow back".
-                             // Let's skip the Blue Tick check for Unfollow mode unless specifically requested.
+                        // Missing UI evidence is a candidate, not proof of no follow-back.
+                        if (this.config.unfollowAction !== 'AUTO') {
+                            Visualizer.injectBadge(info.element);
+                            this.stats.followed++;
+                            this.processedSet.add(uniqueId);
+                            Logger.log('info', `已标记疑似未回关: ${info.handle}（未找到回关标识，请人工确认）`);
+                            Logger.updateStats(this.stats.followed, this.stats.skipped);
+                            processedInThisPass++;
+                            continue;
                         }
 
                         // Scroll & Pause
@@ -477,6 +475,7 @@
                         const actionResult = await UnfollowController.processUnfollow(info.element);
 
                         if (actionResult.status === 'SUCCESS') {
+                            this.processedSet.add(uniqueId);
                             this.stats.followed++; // Reuse 'followed' counter as 'actioned'
                             batchCount++;
                             Visualizer.markProcessed(info.element, 'UNFOLLOWED');
@@ -648,6 +647,7 @@
             isRunning: engine.isRunning, 
             status: engine.isRunning ? 'ACTIVE' : 'IDLE',
             mode: engine.mode,
+            unfollowAction: engine.config.unfollowAction === 'AUTO' ? 'AUTO' : 'MARK',
             stats: engine.stats,
             logs: engine.currentSession ? engine.currentSession.logs : []
         });

@@ -15,6 +15,7 @@
       <button class="tab-btn" data-tab="unfollow">取关助手</button>
       <button class="tab-btn" data-tab="history">运行记录</button>
       <button class="tab-btn" data-tab="collection">采集数据</button>
+      <button class="tab-btn" data-tab="recorder">操作录制</button>
     </nav>
 
     <!-- VIEW: DASHBOARD -->
@@ -46,6 +47,14 @@
         
         <!-- Setting Card -->
         <div class="card">
+          <div id="unfollow-mode-control" hidden>
+            <label class="label-main" for="setting-unfollow-action">处理模式</label>
+            <select id="setting-unfollow-action">
+              <option value="MARK">仅标记（默认）</option>
+              <option value="AUTO">自动取关</option>
+            </select>
+            <p class="label-sub">仅标记：显示「疑似未回关」，不会点击取关。自动取关：会取消关注未显示回关标识的用户。运行中不可切换。</p>
+          </div>
           <!-- Blue Tick Toggle -->
           <div class="control-row">
             <div>
@@ -141,7 +150,7 @@
         <span class="history-title">用户时间线采集</span>
         <button id="btn-refresh-collection" class="btn-clear">刷新</button>
       </div>
-      <p class="capture-hint">默认不采集。在用户的「帖子」或「回复」点击开始，再向下滚动加载；切换页面或刷新后需重新开始。</p>
+      <p class="capture-hint">默认不采集。在用户的「帖子」或「回复」点击开始，再向下滚动加载；同一用户切换帖子/回复继续采集并分别保存；开启采集后可刷新当前页面补采首屏；同一用户刷新保持采集，自动滚动需单独开启；切换其他用户需重新开始。</p>
       <div class="capture-controls">
         <p id="capture-target" role="status">正在读取当前页面…</p>
         <div class="capture-actions">
@@ -149,8 +158,54 @@
           <button id="btn-capture-stop" class="capture-export" type="button" disabled>停止采集</button>
         </div>
       </div>
+      <div class="capture-controls">
+        <p id="scroll-status" role="status">滚动已停止</p>
+        <div class="capture-actions">
+          <button id="btn-scroll-start" class="capture-export" type="button" disabled>开始滚动</button>
+          <button id="btn-scroll-stop" class="capture-export" type="button" disabled>停止滚动</button>
+        </div>
+        <p class="capture-hint">滚动与采集独立控制。停止滚动后仍可手动浏览采集；停止采集不会停止滚动。</p>
+      </div>
       <p id="capture-feedback" role="status" aria-live="polite"></p>
       <div id="collection-list" class="history-list"></div>
+    </div>
+
+    <div id="view-recorder" class="tab-view">
+      <div class="history-header"><span class="history-title">回复测试</span></div>
+      <p class="capture-hint">使用 300 条约 20–40 字、带关注邀请的随机回复，同批不重复；自动排除自己和已处理目标。每次确认发布后，在所设范围内随机等待，再返回首页处理下一条。页面加载和原有 5–10 秒阅读、回填停顿另计。</p>
+      <div class="capture-controls reply-settings">
+        <label for="reply-test-count">本次回复数量（1–50）</label>
+        <input id="reply-test-count" type="number" min="1" max="50" step="1" value="3">
+        <div class="reply-intervals">
+          <label>间隔最小秒数<input id="reply-test-interval-min" type="number" min="0" max="3600" step="1" value="10"></label>
+          <label>间隔最大秒数<input id="reply-test-interval-max" type="number" min="0" max="3600" step="1" value="20"></label>
+        </div>
+        <button id="btn-reply-test-configured" class="capture-export" disabled>按设置开始（会发布）</button>
+      </div>
+      <div class="capture-controls">
+        <div class="capture-actions"><button id="btn-reply-test" class="capture-export">测试一条（会发布）</button><button id="btn-reply-test-three" class="capture-export">测试三条（会发布）</button></div>
+        <button id="btn-reply-test-stop" class="capture-export" disabled>停止测试</button>
+      </div>
+      <p id="reply-test-status" class="capture-hint" role="status"></p>
+      <div class="capture-controls"><button id="btn-reply-diagnostics" class="capture-export">导出完整测试诊断包</button></div>
+      <pre id="reply-test-preview" class="reply-test-preview"></pre>
+      <div class="history-header"><span class="history-title">操作录制</span></div>
+      <p class="capture-hint">第一步：开始录制后，关闭面板，按平时习惯打开帖子、点击回复、输入和滚动。完成后回来停止并导出日志。</p>
+      <div class="capture-controls">
+        <p id="record-status" role="status">正在读取录制状态…</p>
+        <div class="capture-actions">
+          <button id="btn-record-start" class="capture-export" disabled>开始录制</button>
+          <button id="btn-record-stop" class="capture-export" disabled>停止录制</button>
+        </div>
+        <div class="capture-actions">
+          <button id="btn-record-export" class="capture-export" disabled>导出操作日志 JSON</button>
+          <button id="btn-record-clear" class="capture-delete" disabled>清空录制日志</button>
+        </div>
+      </div>
+      <p class="capture-hint">仅录制开始时的 X 标签页，刷新和页面切换后继续；与采集、滚动独立。记录点击目标、帖子 ID、链接、输入动作和弹窗变化，不保存输入文字、密码或鼠标移动轨迹。重复开始会追加日志，最多 5000 条，满后自动停止。</p>
+      <p id="record-feedback" role="status" aria-live="polite"></p>
+      <div class="history-header"><span class="history-title">最近 10 条操作</span></div>
+      <div id="record-preview" class="history-list"></div>
     </div>
 
     <!-- MODAL: DONATE -->
@@ -172,6 +227,9 @@
   </div>
   <script src="../collector/core.js"></script>
   <script src="collection.js" defer></script>
+  <script src="recorder.js" defer></script>
+  <script src="../reply/core.js" defer></script>
+  <script src="reply-test.js" defer></script>
   <script src="main.js" type="module"></script>
 </body>
 </html>

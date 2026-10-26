@@ -11,9 +11,9 @@
       if (!match || RESERVED.has(match[1].toLowerCase())) return null;
       const url = new URL(requestUrl, pageUrl);
       if (url.protocol !== 'https:' || !HOSTS.has(url.hostname)) return null;
-      const operation = url.pathname.match(/\/(?:i\/api\/)?graphql\/[^/]+\/(UserTweets|UserTweetsAndReplies)$/)?.[1];
+      const operation = url.pathname.match(/\/(?:i\/api\/)?graphql\/[^/]+\/(UserTweets|UserOriginalsTimeline|UserTweetsAndReplies|UserRepliesTimeline)$/)?.[1];
       const tab = match[2] ? 'replies' : 'posts';
-      if (operation !== (tab === 'posts' ? 'UserTweets' : 'UserTweetsAndReplies')) return null;
+      if (!(tab === 'posts' ? ['UserTweets', 'UserOriginalsTimeline'] : ['UserTweetsAndReplies', 'UserRepliesTimeline']).includes(operation)) return null;
       const post = typeof body === 'string' ? JSON.parse(body) : body;
       let variables = url.searchParams.get('variables') || post?.variables;
       if (typeof variables === 'string') variables = JSON.parse(variables);
@@ -80,7 +80,7 @@
     const userHandle = user?.core?.screen_name || user?.legacy?.screen_name;
     return { owner: { id: context.userId, handle: userHandle || context.handle,
         name: user?.core?.name || user?.legacy?.name || null }, tab: context.tab,
-      capturedAt, source: { operation: context.operation, cursor: context.cursor, pageUrl: context.pageUrl }, items };
+      capturedAt, terminated: !!timeline?.instructions?.some(i => i.type === 'TimelineTerminateTimeline' && i.direction === 'Bottom'), source: { operation: context.operation, cursor: context.cursor, pageUrl: context.pageUrl }, items };
   }
   function bucketKey(batch) { return `capture:${batch.owner.id}:${batch.tab}`; }
   function mergeBucket(existing, batch) {

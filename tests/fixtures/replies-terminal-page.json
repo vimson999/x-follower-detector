@@ -1,0 +1,56 @@
+{
+  "operation": "UserRepliesTimeline",
+  "variables": {
+    "userId": "2042909540102877184",
+    "cursor": "DAABCgABHU_nxMyAdTMKAAIdT-eTCppRGQgAAwAAAAEAAA"
+  },
+  "response": {
+    "data": {
+      "user": {
+        "result": {
+          "__typename": "User",
+          "timeline": {
+            "timeline": {
+              "instructions": [
+                {
+                  "entries": [
+                    {
+                      "content": {
+                        "__typename": "TimelineTimelineCursor",
+                        "cursorType": "Top",
+                        "entryType": "TimelineTimelineCursor",
+                        "value": "DAABCgABHU_nxMyAnEQKAAIdT-eTCppRGQgAAwAAAAEAAA"
+                      },
+                      "entryId": "cursor-top-2112161582690628916",
+                      "sortIndex": "2112161582690628916"
+                    },
+                    {
+                      "content": {
+                        "__typename": "TimelineTimelineCursor",
+                        "cursorType": "Bottom",
+                        "entryType": "TimelineTimelineCursor",
+                        "value": "DAABCgABHU_nxMyAdTEKAAIdT-eTCppRGQgAAwAAAAIAAA"
+                      },
+                      "entryId": "cursor-bottom-2112161582690628915",
+                      "sortIndex": "2112161582690628915"
+                    }
+                  ],
+                  "type": "TimelineAddEntries"
+                },
+                {
+                  "direction": "Bottom",
+                  "type": "TimelineTerminateTimeline"
+                }
+              ],
+              "metadata": {
+                "scribeConfig": {
+                  "page": "profileReplies"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

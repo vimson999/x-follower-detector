@@ -53,6 +53,39 @@
         "src/content/content.js"
       ],
       "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "src/recorder/content.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "src/reply/core.js",
+        "src/reply/diagnostics.js",
+        "src/reply/content.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "src/reply/network.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ],
   "icons": {

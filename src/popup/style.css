@@ -520,3 +520,34 @@ input:checked + .slider:before { transform: translateX(16px); background-color: 
 .capture-actions { display:flex; gap:8px; }
 .capture-clear { color:#ff7e92; }
 #btn-capture-start { background:var(--accent-primary);color:white; }
+
+#setting-unfollow-action {
+  width: 100%;
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--text-secondary);
+  border-radius: 8px;
+  background: #16181c;
+  color: var(--text-primary);
+}
+#setting-unfollow-action:disabled { opacity: 0.6; }
+
+/* Recording view */
+.tab-nav { flex-wrap: wrap; }
+#view-recorder .capture-actions { margin-bottom: 10px; }
+#record-feedback { padding: 0 20px; font-size: 13px; color: var(--text-secondary); }
+.record-event { padding: 10px 16px; font-size: 12px; border-bottom: 1px solid var(--border-color, #333); overflow-wrap: anywhere; }
+
+.reply-test-preview { white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 20px; font: 13px/1.6 sans-serif; color: var(--text-secondary); }
+
+/* Recorder tools scroll as one page; keep actions at their natural height. */
+#view-recorder { min-height: 0; overflow-y: auto; }
+#view-recorder > * { flex-shrink: 0; }
+#record-preview { flex: 0 0 auto; overflow: visible; }
+#btn-reply-test { background: var(--accent-primary); color: white; border-color: var(--accent-primary); }
+
+.reply-settings { display: grid; gap: 8px; }
+.reply-settings label { color: var(--text-secondary); font-size: 12px; }
+.reply-settings input { display: block; width: 100%; min-width: 0; margin-top: 4px; padding: 7px; background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 6px; }
+.reply-intervals { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#btn-reply-test-configured { background: var(--accent-primary); color: white; }
