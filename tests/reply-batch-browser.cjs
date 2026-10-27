@@ -55,14 +55,14 @@ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:pa
   assert.deepEqual(sent.map(item=>item.id),['1','2','3']);assert.equal(new Set(sent.map(item=>item.text)).size,3);
   assert.deepEqual(await page.evaluate(()=>window.actions),['open:1','publish:1','home','open:2','publish:2','home','open:3','publish:3','home']);
   const batch=await worker.evaluate(async()=> (await chrome.storage.local.get('replyTestState')).replyTestState);
-  assert.equal(batch.diagnostics.replyChoice.poolSize,300);
+  assert.equal(batch.diagnostics.replyChoice.poolSize,500);
   assert.ok(batch.diagnostics.selection.candidates.some(c=>c.id==='900' && c.reason==='own_author'));
   assert.ok(batch.diagnostics.selection.candidates.some(c=>c.id==='101' && c.reason==='own_reply'));
   const ownSaved=await worker.evaluate(async()=> (await chrome.storage.local.get('replyTestOwnReplies')).replyTestOwnReplies);
   assert.equal(ownSaved['101'].parentId,'1');
   assert.equal(ownSaved['102'].parentId,'2');
   assert.equal(batch.batchTotal,3);assert.equal(batch.results.length,3);
-  for(const result of batch.results){assert.equal(result.replyChoice.poolSize,300);assert.ok(sent.some(s=>s.text===result.reply));assert.ok(result.delays.reading_wait>=5000 && result.delays.reading_wait<=10000);assert.ok(result.delays.prepublish_wait>=5000 && result.delays.prepublish_wait<=10000);assert.ok(result.delays.postpublish_wait>=10000 && result.delays.postpublish_wait<=20000);}
+  for(const result of batch.results){assert.equal(result.replyChoice.poolSize,500);assert.ok(sent.some(s=>s.text===result.reply));assert.ok(result.delays.reading_wait>=5000 && result.delays.reading_wait<=10000);assert.ok(result.delays.prepublish_wait>=5000 && result.delays.prepublish_wait<=10000);assert.ok(result.delays.postpublish_wait>=10000 && result.delays.postpublish_wait<=20000);}
   for(const i of [1,2,3]){assert.ok(batch.trace.some(t=>t.itemIndex===i && t.stage==='home_ready'));assert.ok(batch.snapshots.some(t=>t.itemIndex===i && t.stage==='publishing'));}
   assert.equal(await popup.locator('#btn-reply-test-stop').isDisabled(),true);
   async function reset(mode){

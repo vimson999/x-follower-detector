@@ -9,16 +9,16 @@ test('post URLs require numeric IDs and keep their author, excluding undefined l
  assert.equal(c.XReplyTest.postUrl('https://evil.test/alice/status/123'),null);
  assert.equal(c.XReplyTest.postUrl('/alice/status/123?ref=secret','https://x.com/home'),'https://x.com/alice/status/123');
 });
-test('local pool contains three hundred distinct replies and excludes choices already used in this batch',async()=>{
+test('local pool contains five hundred distinct replies and excludes choices already used in this batch',async()=>{
  const c=vm.createContext({URL});vm.runInContext(fs.readFileSync('src/reply/core.js','utf8'),c);
- assert.equal(c.XReplyTest.replyPool.length,300);assert.equal(new Set(c.XReplyTest.replyPool).size,300);
+ assert.equal(c.XReplyTest.replyPool.length,500);assert.equal(new Set(c.XReplyTest.replyPool).size,500);
  const used=[];
- for(let i=0;i<300;i++) {
+ for(let i=0;i<500;i++) {
    const chosen=await c.XReplyTest.requestReply({id:'123',text:'hello'},{usedReplies:used,random:()=>0});
    assert.ok(c.XReplyTest.replyPool.includes(chosen.reply));assert.ok(!used.includes(chosen.reply));
-   assert.equal(chosen.poolSize,300);used.push(chosen.reply);
+   assert.equal(chosen.poolSize,500);used.push(chosen.reply);
  }
- assert.equal((await c.XReplyTest.requestReply({id:'123',text:'hello'},{random:()=>0.999999})).reply,c.XReplyTest.replyPool[299]);
+ assert.equal((await c.XReplyTest.requestReply({id:'123',text:'hello'},{random:()=>0.999999})).reply,c.XReplyTest.replyPool[499]);
  await assert.rejects(()=>c.XReplyTest.requestReply({id:'123',text:''}));
 });
 test('publication reservation serializes tabs and rejects repeated claims',async()=>{

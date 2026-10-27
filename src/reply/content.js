@@ -3,7 +3,7 @@
   const C=globalThis.XReplyTest;
   let busy=false, runId=null, trace=[], diagnostics={}, stage=null, didClick=false;
   let batchTotal=1,itemIndex=0,results=[],stopRequested=false,rateLimited=false,testTabId=null,currentPost=null,currentReply=null,unconfirmed=false,batchAccount=null;
-  let settings=C.validateSettings(),lastHeartbeat=0;
+  let settings=C.validateSettings(),lastHeartbeat=0,requestFailure=null;
   const diagnosticChannel='X_REPLY_DIAGNOSTICS_V1';
   let journal=null,latestState=null,persistence=Promise.resolve(),diagnosticUntil=0;
   const persist=()=>{
@@ -17,6 +17,7 @@
     if(m.type==='NETWORK' && ['HomeTimeline','HomeLatestTimeline','TweetDetail','CreateTweet'].includes(m.event?.operation) && ['started','completed','failed'].includes(m.event?.phase)) {
       const e=m.event;
       if(e.status===429) rateLimited=true;
+      if(e.status>=400) requestFailure=`${e.operation} 请求失败：HTTP ${e.status}，测试停止`;
       // Diagnostic messages never decide whether a publication succeeded.
       journal.addNetwork({requestId:e.requestId,operation:e.operation,phase:e.phase,method:String(e.method).slice(0,10),url:String(e.url).split(/[?#]/)[0].slice(0,300),status:Number.isFinite(e.status)?e.status:null,elapsedMs:e.elapsedMs,time:e.time});
       persist().catch(()=>{});
@@ -38,7 +39,41 @@
   const banner=document.createElement('div');
   banner.setAttribute('data-x-reply-test-status','');
   banner.style.cssText='position:fixed;right:12px;bottom:12px;z-index:2147483647;max-width:320px;padding:10px 14px;border-radius:8px;background:#1d6da5;color:white;font:13px/1.5 sans-serif;pointer-events:none;';
-  const visible=el=>!!el && el.getClientRects().length>0;
+  const visible=el=>{
+    if(!el?.isConnected || !el.getClientRects().length) return false;
+    for(let node=el;node instanceof Element;node=node.parentElement) {
+      const style=getComputedStyle(node);
+      if(style.display==='none' || style.visibility==='hidden' || style.visibility==='collapse' || Number(style.opacity)===0) return false;
+    }
+    return true;
+  };
+  function actionRect(el) {
+    if(!visible(el) || el.disabled || el.closest('[inert], [aria-disabled="true"], [aria-busy="true"]')) return null;
+    const r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;
+    if(r.width<=0 || r.height<=0 || x<0 || y<0 || x>=innerWidth || y>=innerHeight) return null;
+    const hit=document.elementFromPoint(x,y);
+    return hit && (hit===el || el.contains(hit))?[r.x,r.y,r.width,r.height]:null;
+  }
+  const sameRect=(a,b)=>a && b && a.every((v,i)=>Math.abs(v-b[i])<=1);
+  async function prepareAction(el,label,check=()=>{}) {
+    check();guard();
+    if(!el?.isConnected) throw Error(`${label}已消失，测试停止`);
+    el.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
+    let previous=null,stableSince=0;
+    return waitFor(()=>{
+      check();
+      if(!el.isConnected) throw Error(`${label}已被替换，测试停止`);
+      const rect=actionRect(el);
+      if(!rect) {previous=null;stableSince=0;return null;}
+      if(!sameRect(previous,rect)) {previous=rect;stableSince=Date.now();return null;}
+      if(Date.now()-stableSince<600) return null;
+      diagnostics.actions={...(diagnostics.actions || {}),[label]:{rect,stableMs:Date.now()-stableSince}};
+      return rect;
+    },`${label}被遮挡、不可用或位置尚未稳定，未执行操作`,50);
+  }
+  function assertAction(el,rect,label) {
+    if(!sameRect(rect,actionRect(el))) throw Error(`${label}状态或位置已变化，未执行操作`);
+  }
   const isAd=article=>!!article.closest('[data-testid="placementTracking"]') || !!article.querySelector('[data-testid="promotedIndicator"], [data-testid="placementTracking"]');
   function accountHandle() {
     const link=document.querySelector('[data-testid="AppTabBar_Profile_Link"]')?.getAttribute('href');
@@ -69,10 +104,10 @@
     latestState={runId,state,updatedAt:time,clicked:didClick,trace,diagnostics,tabId:testTabId,batchTotal,itemIndex,results,completedCount:results.length,account:batchAccount,replyPoolSize:C.replyPool.length,settings,active:!['completed','stopped','error','uncertain'].includes(state),post:currentPost,reply:currentReply,...extra};
     await persist();
   };
-  async function waitFor(check) {
+  async function waitFor(check,message='等待帖子或回复框超时，请确认页面已加载且账号可以回复',interval=150) {
     const until=Date.now()+12000;
-    while(Date.now()<until) {guard();const value=check();if(value) return value;await new Promise(r=>setTimeout(r,150));}
-    throw Error('等待帖子或回复框超时，请确认页面已加载且账号可以回复');
+    while(Date.now()<until) {guard();const value=check();if(value) return value;await new Promise(r=>setTimeout(r,interval));}
+    throw Error(message);
   }
   function editorFor(article) {
     const scope=article.closest('[data-testid="cellInnerDiv"]');
@@ -91,6 +126,9 @@
     }
     if(stopRequested) throw Error('已停止测试');
     if(rateLimited) throw Error('X 返回 HTTP 429 限流，测试停止，不再处理下一条');
+    if(requestFailure) throw Error(requestFailure);
+    if([...document.querySelectorAll('[role="dialog"], iframe[src*="captcha"], iframe[src*="challenge"]')].some(visible)) throw Error('页面出现弹窗或验证，测试停止，请手动处理');
+    if(/^\/(?:account\/access|i\/flow|login)(?:\/|$)/.test(location.pathname)) throw Error('页面进入登录或验证流程，测试停止');
     if(expectedUrl && C.postUrl(location.href)!==expectedUrl) throw Error('页面已切换，测试停止');
   }
   async function pause(state,ms,expectedUrl) {
@@ -105,7 +143,8 @@
     await status('returning_home');
     const link=[...document.querySelectorAll('[data-testid="AppTabBar_Home_Link"],nav a[href="/home"]')].find(visible);
     if(!link) throw Error('已发布，但找不到首页导航；测试停止，不会再次发布');
-    guard(expectedUrl);link.click();
+    const rect=await prepareAction(link,'首页导航',()=>guard(expectedUrl));
+    guard(expectedUrl);assertAction(link,rect,'首页导航');link.click();
     await waitFor(()=>location.pathname==='/home' && document.querySelector('article[data-testid="tweet"]'));
     await C.sleep(500,guard);
     await status('home_ready');
@@ -155,7 +194,9 @@
       if(!detailUrl) {
         guard();
         const link=[...entry.article.querySelectorAll('a[href*="/status/"]')].find(a=>C.postUrl(a.getAttribute('href'),location.href)===selected.url && a.querySelector('time'));
-        link.click();
+        const homeUrl=location.href;
+        const rect=await prepareAction(link,'帖子入口',()=>{if(location.href!==homeUrl)throw Error('选帖时页面已切换，测试停止');});
+        guard();assertAction(link,rect,'帖子入口');link.click();
       }
       const article=await waitFor(()=>{
         const current=C.postUrl(location.href);
@@ -178,7 +219,10 @@
       if(editor.getAttribute('aria-disabled')==='true') throw Error('当前回复框不可编辑');
       await status('filling',{post:selected,reply:response.reply});
       guard(selected.url);
-      editor.scrollIntoView({block:'center'});editor.focus();
+      const editorRect=await prepareAction(editor,'回复框',()=>guard(selected.url));
+      if(editor.innerText.trim()) throw Error('回复框已有草稿，保留原内容，请清空后再测试');
+      guard(selected.url);assertAction(editor,editorRect,'回复框');editor.focus();
+      if(document.activeElement!==editor && !editor.contains(document.activeElement)) throw Error('回复框未取得焦点，未回填');
       const text=()=>editor.innerText.replace(/\u200b/g,'').trim();
       // Let X's controlled editor handle paste once. Native insertText can be
       // applied by both the browser and the app's beforeinput handler.
@@ -189,13 +233,16 @@
         editor.dispatchEvent(paste);handled=paste.defaultPrevented;
       } catch { /* Plain editors may only support native editing. */ }
       await new Promise(r=>setTimeout(r,250));
+      guard(selected.url);
+      if(!editor.isConnected || (document.activeElement!==editor && !editor.contains(document.activeElement))) throw Error('回复框或焦点已变化，测试停止');
       diagnostics={...diagnostics,pasteHandled:handled,fillMethod:'paste'};
       if(!handled && !text()) {
         diagnostics.fillMethod='native';
         document.execCommand('insertText',false,response.reply);
       }
       const deadline=Date.now()+2000;
-      while(!text() && Date.now()<deadline) await new Promise(r=>setTimeout(r,100));
+      while(!text() && Date.now()<deadline) {guard(selected.url);await new Promise(r=>setTimeout(r,100));}
+      guard(selected.url);
       diagnostics.expectedLength=response.reply.length;diagnostics.actualLength=text().length;
       if(text()!==response.reply) throw Error(`回填内容校验未通过：应为 ${response.reply.length} 字，实际 ${text().length} 字；未点击回复`);
       await pause('prepublish_wait',C.randomDelayMs(),selected.url);
@@ -208,13 +255,17 @@
         diagnostics.buttons=buttons.map(b=>({testId:b.getAttribute('data-testid'),disabled:!!b.disabled,ariaDisabled:b.getAttribute('aria-disabled')}));
         return buttons.length===1 && !buttons[0].disabled && buttons[0].getAttribute('aria-disabled')!=='true'?buttons[0]:null;
       });
+      const publishRect=await prepareAction(publishButton,'回复按钮',()=>{
+        guard(selected.url);
+        if(!editor.isConnected || editor.innerText.trim()!==response.reply || accountHandle()!==account) throw Error('页面、账号或草稿已变化，未发布');
+      });
       const before=new Set([...document.querySelectorAll('article[data-testid="tweet"]')].map(a=>readPost(a)?.id).filter(Boolean));
       await status('publishing',{post:selected,reply:response.reply,mock:true});
       const claim=await chrome.runtime.sendMessage({type:'REPLY_TEST_CLAIM',postId:selected.id,runId});
       if(!claim?.ok) throw Error(claim?.error || '无法确认重复提交状态，未发布');
       if(C.postUrl(location.href)!==selected.url || !publishButton.isConnected || publishButton.disabled || publishButton.getAttribute('aria-disabled')==='true' || !editor.isConnected || editor.innerText.trim()!==response.reply) throw Error('发布前页面状态已变化，测试停止');
       if(accountHandle()!==account || postIdentity(article)?.authorHandle.toLowerCase()===account) throw Error('发布前账号或作者检查未通过');
-      guard();unconfirmed=true;didClick=true;
+      guard(selected.url);assertAction(publishButton,publishRect,'回复按钮');unconfirmed=true;didClick=true;
       publishButton.click();
       await status('confirming',{post:selected,reply:response.reply});
       const published=await waitFor(()=>{
@@ -255,7 +306,7 @@
     if(m.type==='REPLY_TEST_STOP') {stopRequested=true;reply({ok:true});return;}
     if(busy) {reply({ok:false,error:'回复测试正在进行，请先停止'});return;}
     try{settings=C.validateSettings(m.settings || {count:m.count ?? 1});}catch(error){reply({ok:false,error:error.message});return;}
-    batchTotal=settings.count;itemIndex=1;results=[];batchAccount=null;stopRequested=false;rateLimited=false;testTabId=m.tabId || null;
+    batchTotal=settings.count;itemIndex=1;results=[];batchAccount=null;stopRequested=false;rateLimited=false;requestFailure=null;testTabId=m.tabId || null;
     busy=true;trace=[];diagnostics={};stage=null;didClick=false;runId=`${Date.now()}-${Math.random().toString(36).slice(2)}`;
     diagnosticUntil=Date.now()+90000;journal=XReplyDiagnostics.create(runId,{count:batchTotal});latestState={runId,state:'starting',updatedAt:new Date().toISOString()};
     window.postMessage({channel:diagnosticChannel,type:'START',runId,maxDurationMs:90000,maxRequests:Math.min(5000,batchTotal*30+50)},location.origin);

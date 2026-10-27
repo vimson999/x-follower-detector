@@ -68,7 +68,7 @@ const fs=require('node:fs/promises'), os=require('node:os'), path=require('node:
   assert.ok(completed.network.some(e=>e.operation==='CreateTweet' && e.status===200));
   assert.ok(completed.snapshots.some(s=>s.stage==='confirming'));
   assert.ok(sentTexts.includes(completed.reply));
-  assert.equal(completed.diagnostics.replyChoice.poolSize,300);
+  assert.equal(completed.diagnostics.replyChoice.poolSize,500);
   assert.equal(completed.clicked,true);
   assert.equal(completed.completedCount,1);
   for(const stage of ['reading_wait','prepublish_wait']) assert.ok(completed.results[0].delays[stage]>=5000 && completed.results[0].delays[stage]<=10000);
