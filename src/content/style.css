@@ -14,11 +14,22 @@
     border-radius: 99px;
     z-index: 10;
     box-shadow: 0 2px 8px rgba(249, 24, 128, 0.3);
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: pointer;
     user-select: none;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     animation: xf-pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     white-space: nowrap;
+}
+
+.xf-badge-bye:not(.xf-badge-safe):hover::after {
+    content: " · +白名单";
+}
+
+.xf-badge-bye.xf-badge-safe {
+    background: linear-gradient(135deg, #00ba7c, #008a5c);
+    box-shadow: 0 2px 8px rgba(0, 186, 124, 0.3);
+    cursor: default;
 }
 
 @keyframes xf-pop-in {
@@ -26,22 +37,49 @@
     to { opacity: 1; transform: translateX(-50%) scale(1); }
 }
 
-/* --- Target Highlight (Optional, for debugging or visual feedback) --- */
+/* --- Target Highlight (Red enclosing frame for unfollow candidates) --- */
 .xf-target-unfollow {
-    position: relative;
+    position: relative !important;
+    border: 2px solid #ff3b5c !important;
+    border-radius: 12px !important;
+    background-color: rgba(255, 59, 92, 0.06) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 59, 92, 0.25), 0 2px 10px rgba(255, 59, 92, 0.12) !important;
+    box-sizing: border-box !important;
+    transition: all 0.25s ease !important;
 }
 
 .xf-target-unfollow::after {
     content: "";
     position: absolute;
     inset: 0;
-    border: 2px solid rgba(249, 24, 128, 0.2);
+    border: 2px solid #ff3b5c;
     border-radius: 12px;
     pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s;
+    opacity: 1;
+    transition: all 0.25s ease;
 }
 
-.xf-target-unfollow:hover::after {
+.xf-target-unfollow:hover {
+    background-color: rgba(255, 59, 92, 0.1) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 31, 75, 0.45), 0 4px 14px rgba(255, 31, 75, 0.2) !important;
+}
+
+.xf-target-safe {
+    position: relative !important;
+    border: 2px solid #00ba7c !important;
+    border-radius: 12px !important;
+    background-color: rgba(0, 186, 124, 0.06) !important;
+    box-shadow: inset 0 0 0 1px rgba(0, 186, 124, 0.25), 0 2px 10px rgba(0, 186, 124, 0.12) !important;
+    box-sizing: border-box !important;
+    transition: all 0.25s ease !important;
+}
+
+.xf-target-safe::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid #00ba7c;
+    border-radius: 12px;
+    pointer-events: none;
     opacity: 1;
 }

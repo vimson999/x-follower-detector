@@ -17,6 +17,9 @@ test('network diagnostic observes only the active test, redacts query/header/bod
  await new Promise(r=>setImmediate(r));
  const records=sent.filter(m=>m.type==='NETWORK');assert.equal(records.length,2);
  assert.equal(records[1].event.status,429);assert.equal(records[1].event.operation,'CreateTweet');
+ await ctx.fetch('https://x.com/i/api/graphql/h/SearchTimeline?variables=%7B%22rawQuery%22%3A%22%E5%87%BA%E6%91%8A%22%7D');
+ await new Promise(r=>setImmediate(r));
+ assert.ok(sent.some(m=>m.type==='NETWORK' && m.event.operation==='SearchTimeline'));
  assert.ok(!JSON.stringify(records).includes('AUTH_SECRET'));assert.ok(!JSON.stringify(records).includes('PRIVATE_BODY'));
  const count=sent.length;control('STOP');await ctx.fetch(url);assert.equal(sent.length,count);
 });

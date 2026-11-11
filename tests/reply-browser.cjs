@@ -45,20 +45,23 @@ const fs=require('node:fs/promises'), os=require('node:os'), path=require('node:
   await worker.evaluate(async id=>chrome.scripting.executeScript({target:{tabId:id},world:'ISOLATED',func:()=>{
     XReplyTest.sleep=async(ms,check)=>{check();await new Promise(r=>setTimeout(r,15));check();};
   }}),tabId);
-  await popup.getByRole('button',{name:'操作录制',exact:true}).click();
-  const entryBox=await popup.locator('#btn-reply-test').boundingBox();
+  await popup.getByRole('button',{name:'回复助手',exact:true}).click();
+  assert.equal(await popup.locator('#btn-reply-test, #btn-reply-test-three').count(),0);
+  assert.match(await popup.locator('#reply-pool-size').innerText(),/800/);
+  await popup.locator('#reply-test-count').fill('1');
+  const entryBox=await popup.locator('#btn-reply-test-configured').boundingBox();
   assert.ok(entryBox.y>=0 && entryBox.y+entryBox.height<=600,'reply test entry must be visible without scrolling');
-  assert.equal(await popup.locator('#view-recorder').evaluate(el=>getComputedStyle(el).overflowY),'auto');
+  assert.equal(await popup.locator('#view-reply').evaluate(el=>getComputedStyle(el).overflowY),'auto');
   await popup.screenshot({path:path.join(os.tmpdir(),'x-reply-entry.png')});
-  await popup.locator('#btn-reply-test').click();
-  await popup.locator('#reply-test-status').filter({hasText:'测试完成'}).waitFor();
+  await popup.locator('#btn-reply-test-configured').click();
+  await popup.locator('#reply-test-status').filter({hasText:'回复完成'}).waitFor();
   assert.equal(page.url(),'https://x.com/home');
   const sentTexts=await page.evaluate(()=>window.sentTexts);
   assert.equal(sentTexts.length,1);
   assert.ok(await page.evaluate(()=>window.inputEvents)>0);
   assert.equal(await page.evaluate(()=>window.published),1);
   assert.equal(await page.locator('[contenteditable]').count(),0);
-  assert.match(await popup.locator('#reply-test-preview').innerText(),/Full detail post text/);
+  assert.match(await popup.locator('#reply-test-preview').textContent(),/Full detail post text/);
   await page.waitForTimeout(500);
   const completed=await worker.evaluate(async()=> (await chrome.storage.local.get('replyTestState')).replyTestState);
   assert.equal(completed.schemaVersion,2);
@@ -68,7 +71,7 @@ const fs=require('node:fs/promises'), os=require('node:os'), path=require('node:
   assert.ok(completed.network.some(e=>e.operation==='CreateTweet' && e.status===200));
   assert.ok(completed.snapshots.some(s=>s.stage==='confirming'));
   assert.ok(sentTexts.includes(completed.reply));
-  assert.equal(completed.diagnostics.replyChoice.poolSize,500);
+  assert.equal(completed.diagnostics.replyChoice.poolSize,800);
   assert.equal(completed.clicked,true);
   assert.equal(completed.completedCount,1);
   for(const stage of ['reading_wait','prepublish_wait']) assert.ok(completed.results[0].delays[stage]>=5000 && completed.results[0].delays[stage]<=10000);
@@ -78,23 +81,23 @@ const fs=require('node:fs/promises'), os=require('node:os'), path=require('node:
   assert.equal(completed.diagnostics.fillMethod,process.env.DRAFT_DUPLICATES==='1'?'paste':'native');
   assert.ok(completed.trace.some(t=>t.stage==='confirming'));
   // Repeat must retain the existing draft and never publish it.
-  await popup.locator('#btn-reply-test').click();
+  await popup.locator('#btn-reply-test-configured').click();
   await popup.locator('#reply-test-status').filter({hasText:'已提交过'}).waitFor();
   assert.equal(await page.locator('[contenteditable]').count(),0);
   assert.equal(await page.evaluate(()=>window.published),1);
   await page.evaluate(()=>{
     history.pushState({},'', '/home');
-    document.querySelector('main').innerHTML='<article data-testid="tweet"><a href="/alice/status/777"><time>now</time></a></article><article data-testid="tweet"><a href="/alice/status/888"><time>now</time></a><div data-testid="tweetText">Second post must not be selected</div></article>';
+    document.querySelector('main').innerHTML='<article data-testid="tweet"><a href="/alice/status/777"><time>now</time></a></article>';
   });
-  await popup.locator('#btn-reply-test').click();
-  await popup.locator('#reply-test-status').filter({hasText:'第一条帖子无法'}).waitFor();
+  await popup.locator('#btn-reply-test-configured').click();
+  await popup.locator('#reply-test-status').filter({hasText:'首页暂无可处理的未回复文字帖'}).waitFor();
   assert.equal(page.url(),'https://x.com/home');
   assert.equal(await page.evaluate(()=>window.published),1);
   await page.evaluate(()=>{
     history.pushState({},'', '/alice/status/777');
     document.querySelector('main').innerHTML='<article data-testid="tweet"><a href="/alice/status/777"><time>now</time></a><div data-testid="tweetText">Different post</div></article><div contenteditable="true" role="textbox" data-testid="tweetTextarea_0">Existing draft</div><button data-testid="tweetButtonInline">回复</button>';
   });
-  await popup.locator('#btn-reply-test').click();
+  await popup.locator('#btn-reply-test-configured').click();
   await popup.locator('#reply-test-status').filter({hasText:'已有草稿'}).waitFor();
   assert.equal(await page.locator('[contenteditable]').innerText(),'Existing draft');
   assert.equal(await page.evaluate(()=>window.published),1);
@@ -102,7 +105,7 @@ const fs=require('node:fs/promises'), os=require('node:os'), path=require('node:
     const editor=document.querySelector('[contenteditable]');editor.textContent='';
     editor.onpaste=e=>{e.preventDefault();editor.textContent='哈哈哈哈哈哈';};
   });
-  await popup.locator('#btn-reply-test').click();
+  await popup.locator('#btn-reply-test-configured').click();
   await popup.locator('#reply-test-status').filter({hasText:/实际 6 字/}).waitFor();
   const blocked=await worker.evaluate(async()=> (await chrome.storage.local.get('replyTestState')).replyTestState);
   assert.ok(blocked.snapshots.some(s=>s.stage==='error' && s.scope==='body'));
@@ -116,7 +119,12 @@ const fs=require('node:fs/promises'), os=require('node:os'), path=require('node:
   assert.equal(blocked.clicked,false);assert.equal(blocked.failedStage,'filling');
   assert.equal(await page.evaluate(()=>window.published),1);
   assert.match(await page.locator('[data-x-reply-test-status]').innerText(),/未点击回复/);
+  await popup.reload();
+  await popup.evaluate(id=>{chrome.tabs.query=async()=>[await chrome.tabs.get(id)];},tabId);
+  await popup.locator('#view-reply.active').waitFor();
+  assert.equal(await popup.locator('#reply-test-count').inputValue(),'1');
   const downloadPromise=popup.waitForEvent('download');
+  await popup.getByRole('button',{name:'诊断工具',exact:true}).click();
   await popup.locator('#btn-reply-diagnostics').click();
   const download=await downloadPromise;
   const bundle=JSON.parse(await fs.readFile(await download.path(),'utf8'));
@@ -128,7 +136,8 @@ const fs=require('node:fs/promises'), os=require('node:os'), path=require('node:
     history.pushState({},'', '/tester/status/999');
     document.querySelector('main').innerHTML='<article data-testid="tweet"><a href="/TESTER/status/999"><time>now</time></a><div data-testid="tweetText">My own post</div></article>';
   });
-  await popup.locator('#btn-reply-test').click();
+  await popup.getByRole('button',{name:'回复助手',exact:true}).click();
+  await popup.locator('#btn-reply-test-configured').click();
   await popup.locator('#reply-test-status').filter({hasText:'不会回复自己'}).waitFor();
   assert.equal(await page.evaluate(()=>window.published),1);
   console.log('PASS: diagnostic DOM snapshots/network/error/export/redaction,  skip ad, enter exact post, read delayed detail, mock reply, native editor input, publish exactly once, verify reply, reject duplicate');

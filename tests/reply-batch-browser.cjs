@@ -37,7 +37,7 @@ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:pa
   const popup=await context.newPage();await popup.setViewportSize({width:380,height:600});await popup.goto(`chrome-extension://${ext}/src/popup/index.html`);
   const tabId=await worker.evaluate(async()=> (await chrome.tabs.query({url:'https://x.com/home'}))[0].id);
   await popup.evaluate(id=>{chrome.tabs.query=async()=>[await chrome.tabs.get(id)];},tabId);
-  await popup.getByRole('button',{name:'操作录制',exact:true}).click();
+  await popup.getByRole('button',{name:'回复助手',exact:true}).click();
   // The injected scheduler accelerates wall time only in this temporary profile.
   // All requested production waits are still recorded and checked below.
   const inject=async block=>worker.evaluate(async({tabId,block})=>chrome.scripting.executeScript({target:{tabId},world:'ISOLATED',func:block=>{
@@ -47,22 +47,30 @@ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:pa
       while(globalThis.__blockAt==='reading' && document.querySelector('[data-x-reply-test-status]').textContent.includes('等待阅读'));
     };
   },args:[block]}),{tabId,block});
+  // Keep the real action-stability checks and full diagnostic snapshots; allow a five-item run to finish.
+  async function waitCompleted(){
+   try{await popup.locator('#reply-test-status').filter({hasText:'回复完成'}).waitFor({timeout:60000});}
+   catch(error){
+    const state=await worker.evaluate(async()=>{const {replyTestState:s}=await chrome.storage.local.get('replyTestState');return s && {state:s.state,item:s.itemIndex,count:s.batchTotal,message:s.message,trace:s.trace.slice(-4)};});
+    console.error('Reply batch failed:',JSON.stringify(state),await popup.locator('#reply-test-status').textContent());throw error;
+   }
+  }
   await inject(null);
-  await popup.locator('#btn-reply-test-three').click();
-  await popup.locator('#reply-test-status').filter({hasText:'测试完成'}).waitFor();
+  await popup.locator('#btn-reply-test-configured').click();
+  await waitCompleted();
   assert.equal(page.url(),'https://x.com/home');
   const sent=await page.evaluate(()=>window.sent);
   assert.deepEqual(sent.map(item=>item.id),['1','2','3']);assert.equal(new Set(sent.map(item=>item.text)).size,3);
   assert.deepEqual(await page.evaluate(()=>window.actions),['open:1','publish:1','home','open:2','publish:2','home','open:3','publish:3','home']);
   const batch=await worker.evaluate(async()=> (await chrome.storage.local.get('replyTestState')).replyTestState);
-  assert.equal(batch.diagnostics.replyChoice.poolSize,500);
+  assert.equal(batch.diagnostics.replyChoice.poolSize,800);
   assert.ok(batch.diagnostics.selection.candidates.some(c=>c.id==='900' && c.reason==='own_author'));
   assert.ok(batch.diagnostics.selection.candidates.some(c=>c.id==='101' && c.reason==='own_reply'));
   const ownSaved=await worker.evaluate(async()=> (await chrome.storage.local.get('replyTestOwnReplies')).replyTestOwnReplies);
   assert.equal(ownSaved['101'].parentId,'1');
   assert.equal(ownSaved['102'].parentId,'2');
   assert.equal(batch.batchTotal,3);assert.equal(batch.results.length,3);
-  for(const result of batch.results){assert.equal(result.replyChoice.poolSize,500);assert.ok(sent.some(s=>s.text===result.reply));assert.ok(result.delays.reading_wait>=5000 && result.delays.reading_wait<=10000);assert.ok(result.delays.prepublish_wait>=5000 && result.delays.prepublish_wait<=10000);assert.ok(result.delays.postpublish_wait>=10000 && result.delays.postpublish_wait<=20000);}
+  for(const result of batch.results){assert.equal(result.replyChoice.poolSize,800);assert.ok(sent.some(s=>s.text===result.reply));assert.ok(result.delays.reading_wait>=5000 && result.delays.reading_wait<=10000);assert.ok(result.delays.prepublish_wait>=5000 && result.delays.prepublish_wait<=10000);assert.ok(result.delays.postpublish_wait>=10000 && result.delays.postpublish_wait<=20000);}
   for(const i of [1,2,3]){assert.ok(batch.trace.some(t=>t.itemIndex===i && t.stage==='home_ready'));assert.ok(batch.snapshots.some(t=>t.itemIndex===i && t.stage==='publishing'));}
   assert.equal(await popup.locator('#btn-reply-test-stop').isDisabled(),true);
   async function reset(mode){
@@ -75,7 +83,7 @@ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:pa
   await popup.locator('#reply-test-interval-min').fill('25');
   await popup.locator('#reply-test-interval-max').fill('45');
   await popup.locator('#btn-reply-test-configured').click();
-  await popup.locator('#reply-test-status').filter({hasText:'测试完成'}).waitFor();
+  await waitCompleted();
   assert.deepEqual(await page.evaluate(()=>window.sent.map(s=>s.id)),['1','2','3','4','5']);
   const configured=await worker.evaluate(async()=> (await chrome.storage.local.get('replyTestState')).replyTestState);
   assert.equal(configured.batchTotal,5);assert.equal(configured.results.length,5);
@@ -85,7 +93,7 @@ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:pa
   for(const result of configured.results) assert.ok(result.delays.postpublish_wait>=25000 && result.delays.postpublish_wait<=45000);
   await popup.reload();
   await popup.evaluate(id=>{chrome.tabs.query=async()=>[await chrome.tabs.get(id)];},tabId);
-  await popup.getByRole('button',{name:'操作录制',exact:true}).click();
+  await popup.getByRole('button',{name:'回复助手',exact:true}).click();
   assert.equal(await popup.locator('#reply-test-count').inputValue(),'5');
   assert.equal(await popup.locator('#reply-test-interval-min').inputValue(),'25');
   assert.equal(await popup.locator('#reply-test-interval-max').inputValue(),'45');
@@ -96,28 +104,29 @@ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:pa
   await popup.locator('#reply-test-interval-min').fill('25');
   // Stop during the reading wait: no filling or posting and no second target.
   await reset('normal');await inject('reading');
-  await popup.locator('#btn-reply-test-three').click();
+  await popup.locator('#reply-test-count').fill('3');
+  await popup.locator('#btn-reply-test-configured').click();
   await popup.locator('#reply-test-status').filter({hasText:'等待阅读'}).waitFor();
   assert.equal(await popup.locator('#reply-test-count').isDisabled(),true);
   assert.equal(await popup.locator('#reply-test-interval-min').isDisabled(),true);
   await popup.locator('#btn-reply-test-stop').click();
-  await popup.locator('#reply-test-status').filter({hasText:'已停止测试'}).waitFor();
+  await popup.locator('#reply-test-status').filter({hasText:'已停止回复'}).waitFor();
   assert.equal((await page.evaluate(()=>window.sent)).length,0);
   assert.equal(await page.locator('[contenteditable]').innerText(),'');
   assert.deepEqual(await page.evaluate(()=>window.actions),['open:1']);
   // Rate limiting on the second detail must preserve the first success and stop.
   await reset('rate');await inject(null);
-  await popup.locator('#btn-reply-test-three').click();
+  await popup.locator('#btn-reply-test-configured').click();
   await popup.locator('#reply-test-status').filter({hasText:'HTTP 429'}).waitFor();
   assert.deepEqual(await page.evaluate(()=>window.sent.map(s=>s.id)),['1']);
   const limited=await worker.evaluate(async()=> (await chrome.storage.local.get('replyTestState')).replyTestState);
   assert.equal(limited.completedCount,1);assert.equal(limited.active,false);
   // An unconfirmed first submission never proceeds to the next post.
   await reset('uncertain');
-  await popup.locator('#btn-reply-test-three').click();
+  await popup.locator('#btn-reply-test-configured').click();
   await popup.locator('#reply-test-status').filter({hasText:'发布结果待确认'}).waitFor();
   assert.deepEqual(await page.evaluate(()=>window.sent.map(s=>s.id)),['1']);
   assert.deepEqual(await page.evaluate(()=>window.actions),['open:1','publish:1']);
-  console.log('PASS: own posts/replies excluded including timeline reappearance, persistent reply IDs, configurable five-item batch/25–45s bounds/settings restore/invalid range/loading more, hundred-reply random pool with no batch repeats, batch of three, bounded requested waits, home after each, stop during wait, 429 stops next item, uncertainty stops batch');
+  console.log('PASS: own posts/replies excluded including timeline reappearance, persistent reply IDs, configurable five-item batch/25–45s bounds/settings restore/invalid range/loading more, random reply pool with no batch repeats, batch of three, bounded requested waits, home after each, stop during wait, 429 stops next item, uncertainty stops batch');
  }finally{if(context)await context.close();await fs.rm(profile,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

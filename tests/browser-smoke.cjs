@@ -187,7 +187,7 @@ const assert = require('node:assert/strict');
     assert.equal((await read(`capture:${ownerId}:replies`)).pageCount,stoppedPages);
     await popup.getByRole('button',{name:'停止滚动',exact:true}).click();
     // Recorder: trusted clicks, dialog/input, reload continuity, stop and export.
-    await popup.getByRole('button',{name:'操作录制',exact:true}).click();
+    await popup.getByRole('button',{name:'诊断工具',exact:true}).click();
     const installInteractionFixture=()=>page.evaluate(()=>{
       document.body.style.height='20000px';window.scrollTo(0,0);
       const article=document.createElement('article');
@@ -221,7 +221,7 @@ const assert = require('node:assert/strict');
     await page.locator('[data-testid="reply"]').click();
     await popup.goto(`chrome-extension://${extensionId}/src/popup/index.html`);
     await popup.evaluate(id=>{chrome.tabs.query=async()=>[await chrome.tabs.get(id)];},profileTabId);
-    await popup.getByRole('button',{name:'操作录制',exact:true}).click();
+    await popup.getByRole('button',{name:'诊断工具',exact:true}).click();
     await popup.getByRole('button',{name:'停止录制',exact:true}).click();
     await waitFor(async()=>(await read('operationRecording'))?.events.some(e=>e.type==='recording_stop'));
     const stoppedLog=await read('operationRecording');

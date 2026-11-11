@@ -8,17 +8,26 @@ test('post URLs require numeric IDs and keep their author, excluding undefined l
  assert.equal(c.XReplyTest.postUrl('https://x.com/TeStEr/status/999'),'https://x.com/tester/status/999');
  assert.equal(c.XReplyTest.postUrl('https://evil.test/alice/status/123'),null);
  assert.equal(c.XReplyTest.postUrl('/alice/status/123?ref=secret','https://x.com/home'),'https://x.com/alice/status/123');
+ assert.equal(c.XReplyTest.searchQuery('https://x.com/search?q=%E5%87%BA%E6%91%8A&src=typed_query'),'出摊');
+ assert.equal(c.XReplyTest.searchQuery('https://x.com/search?q=出摊&f=live'),'出摊');
+ assert.equal(c.XReplyTest.searchQuery('https://x.com/search?q=%20%20'),null);
+ assert.equal(c.XReplyTest.searchQuery('https://x.com/home'),null);
 });
-test('local pool contains five hundred distinct replies and excludes choices already used in this batch',async()=>{
+test('local pool contains eight hundred distinct replies and excludes choices already used in this batch',async()=>{
  const c=vm.createContext({URL});vm.runInContext(fs.readFileSync('src/reply/core.js','utf8'),c);
- assert.equal(c.XReplyTest.replyPool.length,500);assert.equal(new Set(c.XReplyTest.replyPool).size,500);
+ assert.equal(c.XReplyTest.replyPool.length,800);assert.equal(new Set(c.XReplyTest.replyPool).size,800);
+ assert.equal(c.XReplyTest.hostReplyPool.length,800);assert.equal(new Set(c.XReplyTest.hostReplyPool).size,800);
+ for(const item of c.XReplyTest.hostReplyPool) assert.ok(item.length>=10 && item.length<=20 && !item.includes('回关'),item);
  const used=[];
- for(let i=0;i<500;i++) {
+ for(let i=0;i<800;i++) {
    const chosen=await c.XReplyTest.requestReply({id:'123',text:'hello'},{usedReplies:used,random:()=>0});
    assert.ok(c.XReplyTest.replyPool.includes(chosen.reply));assert.ok(!used.includes(chosen.reply));
-   assert.equal(chosen.poolSize,500);used.push(chosen.reply);
+   assert.equal(chosen.poolSize,800);used.push(chosen.reply);
  }
- assert.equal((await c.XReplyTest.requestReply({id:'123',text:'hello'},{random:()=>0.999999})).reply,c.XReplyTest.replyPool[499]);
+ const hostChosen=await c.XReplyTest.requestReply({id:'123',text:'hello'},{mode:'host',random:()=>0});
+ assert.equal(hostChosen.reply,c.XReplyTest.hostReplyPool[0]);
+ assert.equal(hostChosen.source,'host_pool');
+ assert.equal((await c.XReplyTest.requestReply({id:'123',text:'hello'},{random:()=>0.999999})).reply,c.XReplyTest.replyPool[799]);
  await assert.rejects(()=>c.XReplyTest.requestReply({id:'123',text:''}));
 });
 test('publication reservation serializes tabs and rejects repeated claims',async()=>{
@@ -57,6 +66,7 @@ test('candidate exclusion covers own authors, generated replies and previously p
  assert.equal(c.XReplyTest.exclusionReason({id:'1',authorHandle:'TeStEr'},'tester',{},{}),'own_author');
  assert.equal(c.XReplyTest.exclusionReason({id:'2',authorHandle:'other'},'tester',{'2':{}},{}),'own_reply');
  assert.equal(c.XReplyTest.exclusionReason({id:'3',authorHandle:'other'},'tester',{}, {'3':{}}),'already_processed');
+ assert.equal(c.XReplyTest.exclusionReason({id:'5',authorHandle:'other'},'tester',{'99':{parentId:'5',account:'tester'}},{}),'already_processed');
  assert.equal(c.XReplyTest.exclusionReason({id:'4',authorHandle:'other'},'tester',{},{}),null);
 });
 test('configurable reply count and random interval validate without silently fixing invalid values',()=>{
@@ -67,4 +77,77 @@ test('configurable reply count and random interval validate without silently fix
  assert.equal(c.XReplyTest.randomBetweenMs(20000,40000,()=>0.999999),40000);
  assert.equal(c.XReplyTest.randomBetweenMs(30000,30000),30000);
  for(const value of [{count:0},{count:51},{count:2.5},{count:2,intervalMinSec:40,intervalMaxSec:20},{count:2,intervalMinSec:-1,intervalMaxSec:20},{count:2,intervalMinSec:1,intervalMaxSec:Infinity}]) assert.throws(()=>c.XReplyTest.validateSettings(value));
+});
+test('textOf extracts Twemoji img alt attributes and normalizes zero-width and non-breaking spaces',()=>{
+ const c=vm.createContext({URL});vm.runInContext(fs.readFileSync('src/reply/core.js','utf8'),c);
+ for(const item of c.XReplyTest.replyPool) assert.ok(item.length>=20 && item.length<=40,item);
+ const tree={childNodes:[
+   {nodeType:3,nodeValue:'悄悄在评论区种下一个我'},
+   {nodeType:1,tagName:'IMG',getAttribute:k=>k==='alt'?'🌱':null,childNodes:[]},
+   {nodeType:3,nodeValue:'\u00a0欢迎关注，以后你发推我带水壶支援！\u200b'},
+   {nodeType:1,tagName:'DIV',childNodes:[{nodeType:1,tagName:'BR',childNodes:[]}]}
+ ]};
+ assert.equal(c.XReplyTest.textOf(tree),c.XReplyTest.replyPool[6]);
+ assert.equal(c.XReplyTest.textOf({childNodes:[{nodeType:1,tagName:'BR',childNodes:[]},{nodeType:3,nodeValue:'\u200b'}]}),'');
+});
+test('targeted thread lists are cleaned and host mode uses hostReplyPool',async()=>{
+ const c=vm.createContext({URL});vm.runInContext(fs.readFileSync('src/reply/core.js','utf8'),c);
+ const url='https://x.com/vimson999/status/2117951640867365069';
+ assert.equal(c.XReplyTest.isTargetedThread(url),false);
+ assert.equal(c.XReplyTest.resolveTargetedKey(url,[]),null);
+ assert.equal(Object.keys(c.XReplyTest.targetedThreads).length,0);
+ const hostRes=await c.XReplyTest.requestReply({id:'101',authorHandle:'friend',text:'早安呀'},{mode:'host'});
+ assert.equal(hostRes.source,'host_pool');
+ assert.equal(c.XReplyTest.hostReplyPool.includes(hostRes.reply),true);
+});
+
+test('GEMINI_GENERATE_REPLY rejects duplicate/spam responses and retries until unique',async()=>{
+ let listener;
+ const store={
+   geminiApiKey:'test-mock-api-key',
+   geminiRecentReplies:['这就把摊支起来了']
+ };
+ let fetchCallCount=0;
+ const mockResponses=[
+   {candidates:[{content:{parts:[{text:'混个脸熟'}]}}]},
+   {candidates:[{content:{parts:[{text:'这就把摊支起来了'}]}}]},
+   {candidates:[{content:{parts:[{text:'刚好刷到 冒个泡'}]}}]}
+ ];
+
+ const fetch=async(url,opts)=>{
+   fetchCallCount++;
+   const resBody=mockResponses.shift() || {candidates:[{content:{parts:[{text:'随手占个座'}]}}]};
+   return {
+     ok:true,
+     status:200,
+     json:async()=>resBody
+   };
+ };
+
+ const chrome={
+   runtime:{id:'ext',onMessage:{addListener:fn=>listener=fn}},
+   storage:{
+     local:{
+       get:async k=>(typeof k==='string'?{[k]:structuredClone(store[k])}:structuredClone(store)),
+       set:async o=>Object.assign(store,structuredClone(o))
+     }
+   }
+ };
+
+ const c=vm.createContext({chrome,Date,fetch,AbortController,setTimeout,clearTimeout});
+ vm.runInContext(fs.readFileSync('src/reply/background.js','utf8'),c);
+
+ const res=await new Promise(resolve=>{
+   listener({
+     type:'GEMINI_GENERATE_REPLY',
+     mode:'visit',
+     commentText:'蓝V活人求互关',
+     commentAuthor:'tester'
+   },{id:'ext'},resolve);
+ });
+
+ assert.equal(res.ok,true);
+ assert.equal(res.reply,'刚好刷到 冒个泡');
+ assert.equal(fetchCallCount,3);
+ assert.ok(store.geminiRecentReplies.includes('刚好刷到 冒个泡'));
 });

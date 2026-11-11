@@ -17,7 +17,7 @@
     if(!active || Date.now()>active.until || active.count>=active.maxRequests) return null;
     try {
       const u=new URL(url,location.href);
-      const operation=u.pathname.match(/\/graphql\/[^/]+\/(HomeTimeline|HomeLatestTimeline|TweetDetail|CreateTweet)$/)?.[1];
+      const operation=u.pathname.match(/\/graphql\/[^/]+\/(HomeTimeline|HomeLatestTimeline|SearchTimeline|TweetDetail|CreateTweet)$/)?.[1];
       if(u.protocol!=='https:' || !['x.com','twitter.com'].includes(u.hostname) || !operation) return null;
       active.count++;
       return {requestId:++seq,operation,url:u.origin+u.pathname,method:String(method || 'GET').toUpperCase(),runId:active.id,startedAt:Date.now()};

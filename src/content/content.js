@@ -89,13 +89,39 @@
             }
         }
 
-        static injectBadge(element) {
+        static injectBadge(element, handle, onWhitelist) {
+            element.classList?.remove('xf-target-safe');
+            element.classList?.add('xf-target-unfollow');
+            element.style.border = '2px solid #ff3b5c';
+            element.style.borderRadius = '12px';
+            element.style.backgroundColor = 'rgba(255, 59, 92, 0.06)';
+            element.style.boxShadow = 'inset 0 0 0 1px rgba(255, 59, 92, 0.25), 0 2px 10px rgba(255, 59, 92, 0.12)';
+            element.style.boxSizing = 'border-box';
+
             // Find avatar container
             const avatarContainer = element.querySelector('[data-testid^="UserAvatar-Container-"]') || element;
             if (!avatarContainer.querySelector('.xf-badge-bye')) {
                 const badge = document.createElement('div');
                 badge.className = 'xf-badge-bye';
                 badge.innerText = '疑似未回关';
+                badge.title = '点击加入取关白名单';
+                
+                if (typeof badge.addEventListener === 'function' && handle && onWhitelist) {
+                    badge.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (badge.classList?.contains('xf-badge-safe')) return;
+                        badge.innerText = '已加白名单';
+                        badge.title = '已在取关白名单中';
+                        badge.classList?.add('xf-badge-safe');
+                        element.classList?.remove('xf-target-unfollow');
+                        element.classList?.add('xf-target-safe');
+                        element.style.border = '2px solid #00ba7c';
+                        element.style.backgroundColor = 'rgba(0, 186, 124, 0.06)';
+                        element.style.boxShadow = 'inset 0 0 0 1px rgba(0, 186, 124, 0.25), 0 2px 10px rgba(0, 186, 124, 0.12)';
+                        onWhitelist(handle);
+                    });
+                }
                 
                 // Ensure relative positioning on parent for absolute badge
                 const parentStyle = window.getComputedStyle(avatarContainer);
@@ -110,6 +136,31 @@
   
     class DOMScanner {
       static getScrollContainer() { return window; }
+
+      static normalizeHandle(value) {
+        if (!value) return null;
+        let s = String(value).trim();
+        if (!s) return null;
+        try {
+          if (/^https?:\/\//i.test(s) || /^(?:www\.)?(?:x|twitter)\.com\//i.test(s)) {
+            const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
+            s = u.pathname.split('/').filter(Boolean)[0] || '';
+          }
+        } catch (e) {}
+        s = s.replace(/^[@/]+/, '').split(/[/?#]/)[0].trim().toLowerCase();
+        return /^[a-z0-9_]{1,15}$/.test(s) ? `@${s}` : null;
+      }
+
+      static parseWhitelist(raw) {
+        const list = Array.isArray(raw) ? raw : String(raw || '').split(/[\s,，;；]+/);
+        const out = [];
+        const seen = new Set();
+        for (const item of list) {
+          const h = this.normalizeHandle(item);
+          if (h && !seen.has(h)) { seen.add(h); out.push(h); }
+        }
+        return out;
+      }
   
       static findTargets() {
         const targets = [];
@@ -296,8 +347,24 @@
         this.config = {};
         this.stats = { followed: 0, skipped: 0 };
         this.processedSet = new Set();
+        this.whitelistSet = new Set();
         this.currentSession = null;
         this.mode = 'FOLLOW'; // 'FOLLOW' or 'UNFOLLOW'
+      }
+
+      async addToWhitelist(handle) {
+        const normalized = DOMScanner.normalizeHandle(handle);
+        if (!normalized) return;
+        this.whitelistSet.add(normalized);
+        try {
+          const result = await chrome.storage.local.get(['settings']);
+          const settings = result.settings || {};
+          const merged = DOMScanner.parseWhitelist([...(DOMScanner.parseWhitelist(settings.unfollowWhitelist)), normalized]);
+          settings.unfollowWhitelist = merged;
+          this.config.unfollowWhitelist = merged;
+          await chrome.storage.local.set({ settings });
+          Logger.log('success', `已加入取关白名单: ${normalized}`);
+        } catch (e) {}
       }
 
       isValidPage() {
@@ -421,27 +488,38 @@
       async loop() {
         let batchCount = 0;
         let emptyScanCount = 0; 
-        const MAX_EMPTY_SCANS = 5;
+        const MAX_EMPTY_SCANS = 8;
+        this.whitelistSet = new Set(DOMScanner.parseWhitelist(this.config.unfollowWhitelist));
   
         try {
             while (this.isRunning) {
             const targets = DOMScanner.findTargets();
             let processedInThisPass = 0;
+            let newlySeenInThisPass = 0;
     
             for (const targetEl of targets) {
                 if (!this.isRunning) break;
                 
                 const info = DOMScanner.analyzeTarget(targetEl);
                 if (!info) continue;
+                if (this.mode === 'UNFOLLOW' && info.type !== 'cell') continue;
 
                 const uniqueId = info.handle;
     
                 if (this.processedSet.has(uniqueId)) continue;
+                newlySeenInThisPass++;
                 
                 // === MODE: UNFOLLOW ===
                 if (this.mode === 'UNFOLLOW') {
-                    // Only process Cells (User Lists)
-                    if (info.type !== 'cell') continue;
+
+                    const normalizedHandle = DOMScanner.normalizeHandle(info.handle);
+                    if (normalizedHandle && this.whitelistSet.has(normalizedHandle)) {
+                        this.stats.skipped++;
+                        this.processedSet.add(uniqueId);
+                        Logger.log('info', `白名单保护，已跳过: ${info.handle}`);
+                        Logger.updateStats(this.stats.followed, this.stats.skipped);
+                        continue;
+                    }
 
                     // Logic: If they follow you, SKIP. If they DON'T follow you, UNFOLLOW.
                     if (info.followsYou) {
@@ -453,7 +531,7 @@
                     } else {
                         // Missing UI evidence is a candidate, not proof of no follow-back.
                         if (this.config.unfollowAction !== 'AUTO') {
-                            Visualizer.injectBadge(info.element);
+                            Visualizer.injectBadge(info.element, info.handle, (h) => this.addToWhitelist(h));
                             this.stats.followed++;
                             this.processedSet.add(uniqueId);
                             Logger.log('info', `已标记疑似未回关: ${info.handle}（未找到回关标识，请人工确认）`);
@@ -468,7 +546,7 @@
                         if (!this.isRunning) break;
                         
                         // Inject "Bye" Badge
-                        Visualizer.injectBadge(info.element);
+                        Visualizer.injectBadge(info.element, info.handle, (h) => this.addToWhitelist(h));
                         
                         // Execute Unfollow
                         Logger.log('info', `检测到单向关注: ${info.handle}, 准备取关...`);
@@ -613,7 +691,7 @@
     
             if (!this.isRunning) break;
     
-            if (processedInThisPass === 0) {
+            if (newlySeenInThisPass === 0) {
                 emptyScanCount++;
                 if (emptyScanCount >= MAX_EMPTY_SCANS) {
                     await this.finish();
@@ -623,8 +701,13 @@
                 DOMScanner.scrollToBottom();
                 await Humanizer.sleep(3000); 
             } else {
-                emptyScanCount = 0; 
-                await Humanizer.sleep(1000);
+                emptyScanCount = 0;
+                if (processedInThisPass === 0 || (this.mode === 'UNFOLLOW' && this.config.unfollowAction !== 'AUTO')) {
+                    DOMScanner.scrollToBottom();
+                    await Humanizer.sleep(2000);
+                } else {
+                    await Humanizer.sleep(1000);
+                }
             }
             }
         } catch (err) {

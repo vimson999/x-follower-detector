@@ -10,7 +10,7 @@
     return {tag:el.tagName.toLowerCase(),testId:el.getAttribute('data-testid'),role:el.getAttribute('role'),
       connected:el.isConnected,visible:!!el.getClientRects().length && style.display!=='none' && style.visibility!=='hidden',
       disabled:!!el.disabled,ariaDisabled:el.getAttribute('aria-disabled'),contentEditable:el.isContentEditable,
-      textLength:el.isContentEditable?(el.innerText || '').trim().length:undefined,focused:document.activeElement===el,
+      textLength:el.isContentEditable?(globalThis.XReplyTest?.textOf?globalThis.XReplyTest.textOf(el):(el.innerText || '').trim()).length:undefined,focused:document.activeElement===el,
       rect:{x:r.x,y:r.y,width:r.width,height:r.height},pointerEvents:style.pointerEvents,covered:!!hit && hit!==el && !el.contains(hit)};
   }
   function html(root,limit) {
@@ -40,7 +40,7 @@
     const maxNetworkEvents=Math.min(5000,Math.max(400,count*40+50));
     let ready=false;
     const snapshot=(stage,context={})=>{
-      const selectorMap={posts:'article[data-testid="tweet"]',editors:'[contenteditable="true"][data-testid^="tweetTextarea_"]',publishButtons:'[data-testid="tweetButtonInline"], [data-testid="tweetButton"]',dialogs:'[role="dialog"]',accountLinks:'[data-testid="AppTabBar_Profile_Link"]'};
+      const selectorMap={posts:'article[data-testid="tweet"]',editors:'[data-testid^="tweetTextarea_"][contenteditable="true"], [data-testid^="tweetTextarea_"] [contenteditable="true"]',publishButtons:'[data-testid="tweetButtonInline"], [data-testid="tweetButton"]',dialogs:'[role="dialog"]',accountLinks:'[data-testid="AppTabBar_Profile_Link"]'};
       const locators={};
       for(const [key,selector] of Object.entries(selectorMap)) {const all=[...document.querySelectorAll(selector)];locators[key]={selector,count:all.length,matches:all.slice(0,8).map(describe)};}
       const failure=['error','uncertain'].includes(stage);

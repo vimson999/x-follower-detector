@@ -1,6 +1,6 @@
 /**
  * UI Controller for X-Follow Assistant
- * Modernized for "Top-tier Aesthetic"
+ * Navigation, settings and follow/unfollow controls.
  */
 
 const DEFAULT_SETTINGS = {
@@ -9,8 +9,34 @@ const DEFAULT_SETTINGS = {
   batchSize: 20,
   restTime: 15,
   onlyBlueTick: false,
-  unfollowAction: 'MARK'
+  unfollowAction: 'MARK',
+  unfollowWhitelist: []
 };
+
+function normalizeHandle(value) {
+  if (!value) return null;
+  let s = String(value).trim();
+  if (!s) return null;
+  try {
+    if (/^https?:\/\//i.test(s) || /^(?:www\.)?(?:x|twitter)\.com\//i.test(s)) {
+      const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
+      s = u.pathname.split('/').filter(Boolean)[0] || '';
+    }
+  } catch {}
+  s = s.replace(/^[@/]+/, '').split(/[/?#]/)[0].trim().toLowerCase();
+  return /^[a-z0-9_]{1,15}$/.test(s) ? `@${s}` : null;
+}
+
+function parseWhitelist(raw) {
+  const list = Array.isArray(raw) ? raw : String(raw || '').split(/[\s,，;；]+/);
+  const out = [];
+  const seen = new Set();
+  for (const item of list) {
+    const h = normalizeHandle(item);
+    if (h && !seen.has(h)) { seen.add(h); out.push(h); }
+  }
+  return out;
+}
 
 const elements = {
   inputs: {
@@ -20,7 +46,9 @@ const elements = {
     restTime: document.getElementById('setting-rest-time'),
     onlyBlueTick: document.getElementById('setting-blue-tick'),
     unfollowAction: document.getElementById('setting-unfollow-action'),
+    unfollowWhitelist: document.getElementById('setting-unfollow-whitelist'),
   },
+  whitelistCount: document.getElementById('unfollow-whitelist-count'),
   stats: {
     followed: document.getElementById('count-followed'),
     skipped: document.getElementById('count-skipped'),
@@ -38,7 +66,8 @@ const elements = {
       dashboard: document.getElementById('view-dashboard'),
       history: document.getElementById('view-history'),
       recorder: document.getElementById('view-recorder'),
-      collection: document.getElementById('view-collection')
+      collection: document.getElementById('view-collection'),
+      reply: document.getElementById('view-reply')
   }
 };
 
@@ -50,6 +79,7 @@ const ICON_STOP = `<svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" str
 const ICON_LINK = `<svg class="icon-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`;
 
 document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('app-version').textContent=`v${chrome.runtime.getManifest().version}`;
   await loadSettings();
   setupEventListeners();
   pingContentScript();
@@ -57,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadSettings() {
-  const result = await chrome.storage.local.get(['settings', 'activityLogs']);
+  const result = await chrome.storage.local.get(['settings', 'activityLogs', 'popupActiveTab']);
   let settings = { ...DEFAULT_SETTINGS, ...(result.settings || {}) };
 
   // Migration: Upgrade old default 5 or 10 to new default 15
@@ -72,10 +102,14 @@ async function loadSettings() {
   elements.inputs.restTime.value = settings.restTime;
   elements.inputs.onlyBlueTick.checked = settings.onlyBlueTick;
   elements.inputs.unfollowAction.value = settings.unfollowAction === 'AUTO' ? 'AUTO' : 'MARK';
+  const whitelist = parseWhitelist(settings.unfollowWhitelist);
+  if (elements.inputs.unfollowWhitelist) elements.inputs.unfollowWhitelist.value = whitelist.join('\n');
+  if (elements.whitelistCount) elements.whitelistCount.textContent = `${whitelist.length} 人`;
   
   // Load Mode & Activate Tab
   window.currentMode = settings.mode || 'FOLLOW';
-  activateTabByMode(window.currentMode);
+  updateUIForMode(window.currentMode);
+  showTab(result.popupActiveTab || (window.currentMode === 'UNFOLLOW' ? 'unfollow' : 'follow'));
 
   if (result.activityLogs && Array.isArray(result.activityLogs)) {
     result.activityLogs.forEach(log => {
@@ -85,6 +119,8 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
+  const unfollowWhitelist = parseWhitelist(elements.inputs.unfollowWhitelist?.value || '');
+  if (elements.whitelistCount) elements.whitelistCount.textContent = `${unfollowWhitelist.length} 人`;
   const settings = {
     minInterval: parseInt(elements.inputs.minInterval.value, 10),
     maxInterval: parseInt(elements.inputs.maxInterval.value, 10),
@@ -92,6 +128,7 @@ async function saveSettings() {
     restTime: parseInt(elements.inputs.restTime.value, 10),
     onlyBlueTick: elements.inputs.onlyBlueTick.checked,
     unfollowAction: elements.inputs.unfollowAction.value,
+    unfollowWhitelist,
     mode: window.currentMode || 'FOLLOW'
   };
   await chrome.storage.local.set({ settings });
@@ -100,6 +137,7 @@ async function saveSettings() {
 
 function setupEventListeners() {
   Object.values(elements.inputs).forEach(el => {
+    if (!el) return;
     el.addEventListener('change', (e) => {
         // Validation for Batch Size
         if (e.target.id === 'setting-batch-size') {
@@ -113,6 +151,7 @@ function setupEventListeners() {
         updateUIForMode(window.currentMode || 'FOLLOW');
     });
   });
+  elements.inputs.unfollowWhitelist?.addEventListener('input', () => saveSettings());
   
   elements.btnStart.addEventListener('click', toggleEngine);
 
@@ -126,36 +165,18 @@ function setupEventListeners() {
   elements.tabs.forEach(btn => {
       btn.addEventListener('click', () => {
           const tabName = btn.dataset.tab;
-          if (isRunning && ['follow', 'unfollow'].includes(tabName)) return;
-          
-          // 1. Update Tab Visuals
-          elements.tabs.forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-
-          // Collection is independent of the follow/unfollow engine mode.
-          Object.values(elements.views).forEach(view => view.classList.remove('active'));
-          if (tabName === 'recorder') {
-              elements.views.recorder.classList.add('active');
-              window.XOperationRecorder.refresh();
-          } else if (tabName === 'collection') {
-              elements.views.collection.classList.add('active');
-              window.XFollowCollection.refresh();
-          } else if (tabName === 'history') {
-              // Hide Dashboard, Show History
-              elements.views.dashboard.classList.remove('active');
-              elements.views.history.classList.add('active');
-              renderHistoryList();
-          } else {
-              // Show Dashboard
-              elements.views.history.classList.remove('active');
-              elements.views.dashboard.classList.add('active');
-              
-              // Switch Mode (Follow vs Unfollow)
-              const newMode = (tabName === 'unfollow') ? 'UNFOLLOW' : 'FOLLOW';
+          const newMode = tabName === 'unfollow' ? 'UNFOLLOW' : 'FOLLOW';
+          if (isRunning && ['follow', 'unfollow'].includes(tabName) && newMode !== window.currentMode) return;
+          if (['follow', 'unfollow'].includes(tabName)) {
               window.currentMode = newMode;
               updateUIForMode(newMode);
-              saveSettings(); // Persist the mode change
+              saveSettings();
           }
+          showTab(tabName);
+          chrome.storage.local.set({popupActiveTab:tabName});
+          if (tabName === 'recorder') window.XOperationRecorder.refresh();
+          if (tabName === 'collection') window.XFollowCollection.refresh();
+          if (tabName === 'history') renderHistoryList();
       });
   });
   
@@ -197,6 +218,14 @@ function setupEventListeners() {
           isRunning = false;
           setButtonState('idle');
       }
+    }
+  });
+
+  chrome.storage.onChanged?.addListener((changes, area) => {
+    if (area === 'local' && changes.settings?.newValue && document.activeElement !== elements.inputs.unfollowWhitelist) {
+      const whitelist = parseWhitelist(changes.settings.newValue.unfollowWhitelist);
+      if (elements.inputs.unfollowWhitelist) elements.inputs.unfollowWhitelist.value = whitelist.join('\n');
+      if (elements.whitelistCount) elements.whitelistCount.textContent = `${whitelist.length} 人`;
     }
   });
 }
@@ -303,23 +332,21 @@ async function renderHistoryList() {
 
 // --- Engine Control ---
 
+function showTab(name) {
+    const tabName=[...elements.tabs].some(btn=>btn.dataset.tab===name)?name:'follow';
+    const view=['follow','unfollow'].includes(tabName)?'dashboard':tabName;
+    elements.tabs.forEach(btn=>{
+        const selected=btn.dataset.tab===tabName;
+        btn.classList.toggle('active',selected);
+        btn.setAttribute('aria-pressed',String(selected));
+    });
+    for(const [key,el] of Object.entries(elements.views)) el.classList.toggle('active',key===view);
+}
+
 function activateTabByMode(mode) {
-    const tabName = (mode === 'UNFOLLOW') ? 'unfollow' : 'follow';
-    const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
-    
-    if (tabBtn) {
-        // Deactivate all
-        elements.tabs.forEach(b => b.classList.remove('active'));
-        elements.views.history.classList.remove('active');
-        elements.views.collection.classList.remove('active');
-        elements.views.recorder.classList.remove('active');
-        
-        // Activate target
-        tabBtn.classList.add('active');
-        elements.views.dashboard.classList.add('active');
-        
-        updateUIForMode(mode);
-    }
+    updateUIForMode(mode);
+    const active=document.querySelector('.tab-btn.active')?.dataset.tab;
+    if (!active || ['follow','unfollow'].includes(active)) showTab(mode === 'UNFOLLOW' ? 'unfollow' : 'follow');
 }
 
 function updateUIForMode(mode) {
@@ -332,12 +359,12 @@ function updateUIForMode(mode) {
     document.getElementById('unfollow-mode-control').hidden = mode !== 'UNFOLLOW';
     if (mode === 'UNFOLLOW') {
         const markOnly = elements.inputs.unfollowAction.value !== 'AUTO';
-        if (!isRunning) startBtnText.innerText = markOnly ? '开始标记' : '启动自动取关';
+        if (!isRunning) startBtnText.innerText = markOnly ? '开始标记' : '开始自动取关';
         followedLabel.innerText = markOnly ? '已标记' : '已取关';
         // Optional: Change button color to indicate destructive action
         // elements.btnStart.style.background = 'var(--danger)'; // User might prefer CSS class
     } else {
-        if (!isRunning) startBtnText.innerText = '启动关注引擎';
+        if (!isRunning) startBtnText.innerText = '开始关注';
         followedLabel.innerText = '已关注';
         // elements.btnStart.style.background = 'var(--text-primary)';
     }
@@ -346,7 +373,11 @@ function updateUIForMode(mode) {
 function setButtonState(state) {
     elements.inputs.unfollowAction.disabled = state === 'running';
     const currentMode = window.currentMode || 'FOLLOW';
-    const actionName = currentMode === 'UNFOLLOW' ? '助手' : '引擎';
+    const actionName = currentMode === 'UNFOLLOW' ? '处理' : '关注';
+    for (const btn of elements.tabs) {
+        const mode=btn.dataset.tab === 'unfollow' ? 'UNFOLLOW' : 'FOLLOW';
+        btn.disabled=state === 'running' && ['follow','unfollow'].includes(btn.dataset.tab) && mode !== currentMode;
+    }
 
     if (state === 'running') {
         elements.btnStart.innerHTML = `${ICON_STOP} <span class="btn-text">停止${actionName}</span>`;
