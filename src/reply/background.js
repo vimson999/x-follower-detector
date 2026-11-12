@@ -31,18 +31,17 @@
 
 【学真实推特评论区说话——彻底消灭AI机器人味】
 真实推友在评论区是怎么互动的：
-1. 随性路过打卡：对方求交友/营业，随口回“这就把摊支起来了”、“刚好刷到了”、“算法立功了”、“随手占个座”、“前排路过”。
+1. 随性路过打卡：对方求交友或发日常，随口留一句自然生活化短句，比如问候摸鱼、随手打卡或顺着话题搭话。
 2. 唠两句日常生活：对方发营业或日常，随口问“还没下班吧”、“摸鱼刚好刷到你”、“下午好 摸鱼呢”、“今天下工挺早”。
 3. 生活化直接反应：对方提神喝咖啡“小心超频”，对方摸鱼险被抓“快按Alt Tab”，对方周五等下班“倒计时中”，对方早安冲啊“好 我再躺5分钟”。
 
 【严格禁止四大AI机械病】
-1. 绝对严禁重复高频词与套路：绝对禁止使用“混个脸熟”、“大活人”等营销刷量高频词！违者视为机器人违规！
-2. 绝对严禁照抄示例原句：标杆示例仅供理解说话语气和极简字数，严禁一字不差输出示例原话，必须结合对方推文的独特字词或细节即兴发挥！
+1. 绝对严禁高频模板：严禁机械复读“混个脸熟”、“大活人”等营销刷量高频词！每次结合推文换不同表达！
+2. 绝对严禁照抄示例原句：标杆示例仅供理解说话语气和极简字数，严禁一字不差输出示例原话，必须即兴发挥！
 3. 绝对严禁关键词条件反射：严禁一看到“浇水”就机械回复“水瓢”，一看到“串门”就回“领鸡蛋”！
 4. 绝对严禁老干部套话与假客套：严禁“加油一起冲”、“互关必回”、“祝开心美好”。
 
 【黄金标杆示例（4–8字最佳，末尾绝无标点，结合对方推文具体细节即兴发挥）】
-- 对方求互动交友：营业啦，活人来交朋友 -> 这就把摊支起来了 / 刚好刷到了 / 算法立功了 / 冒个泡证明健在
 - 对方打鸡血冲啊：大家早安！今天又是充满希望的一天，兄弟们冲啊！ -> 好 我再躺5分钟 / 大清早哪来这么大劲
 - 对方工位摸鱼：下午好困，老板刚刚走过去，差点被抓包 -> 快按Alt Tab / 稳住 假装看屏
 - 对方周五等下班：周五了，下午三点的心情谁懂啊 -> 倒计时中 / 心已经溜了
@@ -72,29 +71,39 @@
     const systemInstruction = isHost ? GEMINI_SYSTEM_INSTRUCTION_HOST : GEMINI_SYSTEM_INSTRUCTION_VISIT;
     const authorDisplayName = `@${commentAuthor || '推友'}`;
 
-    const avoidSection = recentList.length > 0
-      ? `\n\n【最近已发布的回复历史（必须严格避开！绝对严禁重复相似词汇或句式，必须换全新的角度与表达）】：\n${recentList.slice(-12).map(r => `"${r}"`).join(', ')}`
+    // 适度容忍策略：仅避开紧邻的前 3 条，绝不过度限制造成卡死
+    const immediateRecent = recentList.slice(-3);
+    const avoidSection = immediateRecent.length > 0
+      ? `\n\n【刚发过的回复（本次尽量换个不同词汇）：${immediateRecent.map(r => `"${r}"`).join('、')}】`
       : '';
 
-    const prompt = (isHost
+    const basePrompt = isHost
       ? `【我发布的主帖正文】\n${mainPostText || '日常发帖出摊'}\n\n【对方推友】\n${authorDisplayName}\n\n【对方评论内容】\n${commentText}\n\n请直接输出一句极其自然、真人口吻的短评（4-8字，末尾无标点）：`
-      : `【对方发布的推文内容】\n${commentText}\n\n请直接输出一句像评论区真人一样随口搭讪的短评（4-8字，末尾无标点）：`
-    ) + avoidSection;
+      : `【对方发布的推文内容】\n${commentText}\n\n请直接输出一句像评论区真人一样随口搭讪的短评（4-8字，末尾无标点）：`;
 
     console.log(`[x-helper Gemini] 准备调用 API [${mode}]，入参:`, { mode, mainPostText, commentAuthor, commentAuthorName, commentText });
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
-    const payload = {
-      systemInstruction: { parts: [{ text: systemInstruction }] },
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.95, maxOutputTokens: 25 }
-    };
 
     let text = '', errorMsg = null;
     const maxAttempts = 3;
+    const rejectedInRun = [];
+
     for(let attempt=1; attempt<=maxAttempts; attempt++) {
       try {
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const timer = controller ? setTimeout(()=>controller.abort(), 15000) : null;
+
+        let currentPrompt = basePrompt + avoidSection;
+        if(rejectedInRun.length > 0) {
+          currentPrompt += `\n\n【注意：上一轮生成的 "${rejectedInRun.slice(-1)[0]}" 刚发过，请换个不同词汇】`;
+        }
+
+        const payload = {
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ parts: [{ text: currentPrompt }] }],
+          generationConfig: { temperature: Math.min(1.0, 0.9 + attempt * 0.05), maxOutputTokens: 25 }
+        };
+
         const res = await fetchFn(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -107,20 +116,25 @@
           throw Error(`Gemini API 错误 (${res.status}): ${errText.slice(0, 150)}`);
         }
         const data = await res.json();
-        text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        text = text.replace(/^["'“”‘`]+|["'“”‘`]+$/g, '')
-                   .replace(/^[#\-*\s]+/, '')
-                   .replace(/[。！!]+$/g, '')
-                   .trim();
-        if(!text) throw Error('Gemini API 未返回有效回复');
+        let candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        candidateText = candidateText.replace(/^["'“”‘`]+|["'“”‘`]+$/g, '')
+                                     .replace(/^[#\-*\s]+/, '')
+                                     .replace(/[。！!]+$/g, '')
+                                     .trim();
+        if(!candidateText) throw Error('Gemini API 未返回有效回复');
 
-        // Check if text is repetitive spam or matches recent history
-        const isSpammy = /^(?:大?活人来)?混个脸熟$/i.test(text);
-        if(isSpammy || recentList.includes(text)) {
-          console.warn(`[x-helper Gemini] 命中高频词或最近历史重复 ("${text}")，尝试重新生成 (第 ${attempt} 次)...`);
-          throw Error(`回复内容重复 ("${text}")，重新生成`);
+        const isSpammy = /^(?:大?活人来)?混个脸熟$/i.test(candidateText);
+        // 适度容忍：只防连续紧挨着重复（紧邻的前2条），且在前两轮尝试重换；第三轮即使偶有重复也放行，绝不阻断任务
+        const isImmediateDuplicate = immediateRecent.slice(-2).includes(candidateText);
+
+        if((isSpammy || isImmediateDuplicate) && attempt < maxAttempts) {
+          console.warn(`[x-helper Gemini] 命中紧邻重复或高频词 ("${candidateText}")，尝试换个词 (第 ${attempt}/${maxAttempts} 次)...`);
+          if(!rejectedInRun.includes(candidateText)) rejectedInRun.push(candidateText);
+          await new Promise(r=>setTimeout(r, 600));
+          continue;
         }
 
+        text = candidateText;
         console.log(`[x-helper Gemini] [${mode}] 生成成功:`, text);
         errorMsg = null;
         break;
@@ -146,7 +160,7 @@
             mainPostText,
             commentAuthor,
             commentText,
-            prompt,
+            prompt: basePrompt,
             reply: text,
             error: null,
             status: 'success'
@@ -162,7 +176,7 @@
             mainPostText,
             commentAuthor,
             commentText,
-            prompt,
+            prompt: basePrompt,
             reply: null,
             error: errorMsg,
             status: 'failed'
