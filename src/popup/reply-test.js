@@ -33,6 +33,13 @@
     if(submitting) return;
     submitting=true;lockSettings(true);stopButton.disabled=true;
     try {
+      const keyVal = apiKeyInput?.value?.trim();
+      if(keyVal) {
+        await chrome.storage.local.set({ geminiApiKey: keyVal });
+      } else {
+        const stored = await chrome.storage.local.get('geminiApiKey');
+        if(!stored?.geminiApiKey) throw Error('请先在下方填入 Gemini API Key');
+      }
       const settings=readSettings();uiError=null;
       await chrome.storage.local.set({replyTestSettings:settings});
       const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
@@ -51,10 +58,12 @@
     await render();
   });
   if(apiKeyInput) {
-    apiKeyInput.addEventListener('change', async () => {
+    const saveKey = async () => {
       const val = apiKeyInput.value.trim();
-      await chrome.storage.local.set({ geminiApiKey: val });
-    });
+      if(val) await chrome.storage.local.set({ geminiApiKey: val });
+    };
+    apiKeyInput.addEventListener('input', saveKey);
+    apiKeyInput.addEventListener('change', saveKey);
   }
   stopButton.addEventListener('click',async()=>{
     try{
